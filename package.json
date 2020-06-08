@@ -1,0 +1,66 @@
+{
+  "name": "web3-events",
+  "version": "0.1.0",
+  "description": "Framework for robust handling of web3 events",
+  "keywords": [
+    "web3",
+    "events"
+  ],
+  "homepage": "https://github.com/rsksmart/web3-events",
+  "bugs": {
+    "url": "https://github.com/rsksmart/web3-events/issues/"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Adam Uhlíř",
+    "email": "adam@uhlir.dev"
+  },
+  "files": [
+    "/lib",
+  ],
+  "directories": {
+    "lib": "src",
+    "test": "test/",
+    "config": "config/"
+  },
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rsksmart/web3-events.git"
+  },
+  "scripts": {
+    "compile": "tasegir compile",
+    "docs": "typedoc --mode modules --excludeNotExported --readme none --excludePrivate  --tsconfig ./node_modules/tasegir/src/config/tsconfig.json --exclude 'src/providers/*,test/**/*' --out docs src",
+    "types-check": "tasegir types-check",
+    "lint": "tasegir lint",
+    "release": "tasegir release",
+    "test": "tasegir test --target node"
+  },
+  "dependencies": {
+
+  },
+  "devDependencies": {
+    "@fluffy-spoon/substitute": "^1.140.0",
+    "@types/chai": "^4.2.11",
+    "@types/chai-as-promised": "^7.1.2",
+    "@types/dirty-chai": "^2.0.2",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^14.0.4",
+    "@types/sinon": "^9.0.3",
+    "@types/sinon-chai": "^3.2.4",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "dirty-chai": "^2.0.1",
+    "sinon": "^9.0.1",
+    "sinon-chai": "^3.5.0",
+    "tasegir": "^1.7.1"
+  },
+  "engines": {
+    "node": ">=10.0.0",
+    "npm": ">=6.0.0"
+  },
+  "types": "types/index.d.ts",
+  "contributors": [
+    "Adam Uhlíř <adam@uhlir.dev>"
+  ]
+}
