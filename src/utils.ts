@@ -97,6 +97,34 @@ export function errorHandler (fn: (...args: any[]) => Promise<any>, logger: Logg
   }
 }
 
+export function scopeObject (obj: Record<string, any>, scope: string): Record<string, any> {
+  return new Proxy(obj, {
+    get (target: Record<string, any>, name: PropertyKey): any {
+      if (typeof name === 'symbol') {
+        throw new Error('Symbols are not supported by scopeObject')
+      }
+
+      return Reflect.get(target, `${scope}${name}`)
+    },
+    set (target: Record<string, any>, name: PropertyKey, value: any): boolean {
+      if (typeof name === 'symbol') {
+        throw new Error('Symbols are not supported by scopeObject')
+      }
+
+      target[`${scope}${name}`] = value
+      return true
+    },
+    deleteProperty (target: Record<string, any>, name: PropertyKey): boolean {
+      if (typeof name === 'symbol') {
+        throw new Error('Symbols are not supported by scopeObject')
+      }
+
+      delete target[`${scope}${name}`]
+      return true
+    }
+  })
+}
+
 /**
  * Abstract EventEmitter that automatically start (what ever task defined in abstract start() method) when first listener is
  * attached and similarly stops (what ever task defined in abstract stop() method) when last listener is removed.

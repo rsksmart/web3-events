@@ -16,7 +16,8 @@
     "email": "adam@uhlir.dev"
   },
   "files": [
-    "/lib"
+    "/lib",
+    "/types"
   ],
   "directories": {
     "lib": "src",

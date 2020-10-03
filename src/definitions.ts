@@ -36,10 +36,6 @@ export type EventsEmitterEmptyEvents = keyof {
 }
 export type EventsEmitter<E> = Emittery.Typed<EventEmitterEvents<E>, EventsEmitterEmptyEvents>
 
-interface BlockTrackerStore {
-  [PROCESSED_BLOCK_KEY]?: number
-}
-
 export interface Logger {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   critical(message: string | Error | object, ...meta: any[]): never

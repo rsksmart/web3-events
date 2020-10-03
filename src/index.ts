@@ -1,8 +1,11 @@
 import type { Eth } from 'web3-eth'
-import Emittery from 'emittery'
 
-import { Logger, NewBlockEmitter } from './definitions'
-import { PollingNewBlockEmitter } from './new-block-emitter'
+import { EventsEmitter, EventsEmitterOptions, Logger, NewBlockEmitter, NewBlockEmitterOptions } from './definitions'
+import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-emitter'
+import { PollingEventsEmitter } from './events'
+import { Contract } from './contract'
+import { loggingFactory, scopeObject } from './utils'
+import { BlockTracker, BlockTrackerStore } from './block-tracker'
 
 export { Contract } from './contract'
 export * from './definitions'
@@ -14,25 +17,88 @@ export { ModelConfirmator, ConfirmatorOptions } from './confirmator'
 
 export interface Web3EventsOptions {
   logger?: Logger
+  defaultNewBlockEmitter?: NewBlockEmitterOptions | NewBlockEmitter
+  store?: Record<string, any>
 }
 
-const defaultSymbol = Symbol('defaultValue')
+export type EventsEmitterCreationOptions = {
+  blockTracker?: BlockTracker
+  newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
+} & EventsEmitterOptions
 
+/**
+ * Main entry point class to the library.
+ * It provides "glue" for all the components making it easier to create EventsEmitters.
+ */
 export class Web3Events {
-  private logger?: Logger
-  private eth: Eth
-  private newBlockEmitters: Map<string | symbol, NewBlockEmitter>
+  private readonly logger: Logger
+  private readonly eth: Eth
+  private readonly defaultNewBlockEmitter: NewBlockEmitter
+  private readonly store: Record<string, any> | undefined
+  private readonly contractsUsed: Set<string>
 
-  constructor (eth: Eth, { logger }: Web3EventsOptions = {}) {
-    this.logger = logger
+  /**
+   * @param eth Web3 Eth instance defining connection to blockchain
+   * @param store Optional global store where all the persistent information of EventsEmitters will be placed
+   * @param logger Optional logger instance. If not passed then 'debug' package is used instead for logging
+   * @param defaultNewBlockEmitter Optional custom configuration or instance of default NewBlockEmitter
+   */
+  constructor (eth: Eth, { store, logger, defaultNewBlockEmitter }: Web3EventsOptions = {}) {
+    this.logger = logger ?? loggingFactory('web3events')
     this.eth = eth
-    this.newBlockEmitters = new Map()
+    this.store = store
+    this.contractsUsed = new Set()
 
     // Default newBlockEmitter
-    this.newBlockEmitters.set(defaultSymbol, new PollingNewBlockEmitter(eth))
+    this.defaultNewBlockEmitter = this.resolveNewBlockEmitter(defaultNewBlockEmitter) ?? new PollingNewBlockEmitter(eth)
   }
 
-  setNewBlockEmitter (name: string | symbol = defaultSymbol) {
+  /**
+   * Creates a new EventsEmitter for given Contract.
+   *
+   * Generally there should be only one emitter per Contract. If you want to use multiple instances for Contract
+   * then you have to provide custom instances of BlockTracker as the global store would have otherwise collisions.
+   *
+   * @param contract Instance of Contract that defines where the events will come from
+   * @param options
+   * @param options.blockTracker Custom instance of BlockTracker
+   * @param options.newBlockEmitter Custom instance of NewBlockEmitter
+   */
+  public createEventsEmitter<Events> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
+    if (this.contractsUsed.has(contract.name)) {
+      if (!options.blockTracker) {
+        throw new Error('This contract is already listened on! New Emitter would use already utilized Store scope. Use your own BlockTracker if you want to continue!')
+      } else {
+        this.logger.warn(`Contract with name ${contract.name} already has events emitter!`)
+      }
+    }
 
+    this.contractsUsed.add(contract.name)
+
+    if (!this.store && !options.blockTracker) {
+      throw new Error('You have to either set global "store" object in constructor or pass BlockTracker instance!')
+    }
+    const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
+    const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNewBlockEmitter
+
+    return new PollingEventsEmitter(this.eth, contract, blockTracker, newBlockEmitter, this.logger, undefined, options)
+  }
+
+  private resolveNewBlockEmitter (value?: NewBlockEmitterOptions | NewBlockEmitter): NewBlockEmitter | undefined {
+    if (!value) {
+      return
+    }
+
+    if (value instanceof PollingNewBlockEmitter || value instanceof ListeningNewBlockEmitter) {
+      return value
+    }
+
+    value = value as NewBlockEmitterOptions
+
+    if (value?.polling === false) {
+      return new ListeningNewBlockEmitter(this.eth)
+    } else {
+      return new PollingNewBlockEmitter(this.eth, value?.pollingInterval)
+    }
   }
 }

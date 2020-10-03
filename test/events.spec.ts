@@ -433,7 +433,7 @@ describe('PollingEventsEmitter', function () {
       await Event.bulkCreate(events)
 
       const contract = Substitute.for<Contract>()
-      contract.options.returns!({ jsonInterface: [{}] as AbiItem[], address: '0x123' })
+      contract.address.returns!('0x123')
       contract.getPastEvents(Arg.all()).resolves(
         [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
       )
@@ -474,7 +474,7 @@ describe('PollingEventsEmitter', function () {
       eth.getBlock(8).resolves(blockMock(8, '0x222')) // Same hash ==> reorg in confirmation range
 
       const contract = Substitute.for<Contract>()
-      contract.options.returns!({ jsonInterface: [{}] as AbiItem[], address: '0x123' })
+      contract.address.returns!('0x123')
       contract.getPastEvents('allEvents', { fromBlock: 9, toBlock: 11 }).resolves( // 9 because we don't want to reprocess 8th already processed block
         [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
       )
@@ -516,7 +516,7 @@ describe('PollingEventsEmitter', function () {
       eth.getBlock(8).resolves(blockMock(8, '0x33')) // Different hash ==> reorg OUTSIDE of confirmation range
 
       const contract = Substitute.for<Contract>()
-      contract.options.returns!({ jsonInterface: [{}] as AbiItem[], address: '0x123' })
+      contract.address.returns!('0x123')
       contract.getPastEvents(Arg.all()).resolves(
         [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
       )

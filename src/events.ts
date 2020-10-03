@@ -51,7 +51,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
     if (this.confirmations > 0) {
-      this.confirmator = options?.confirmator ?? new ModelConfirmator(this, eth, contract.options.address, this.blockTracker, { baseLogger })
+      this.confirmator = options?.confirmator ?? new ModelConfirmator(this, eth, contract.address, this.blockTracker, { baseLogger })
     }
   }
 
@@ -251,7 +251,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     await this.confirmator!.checkDroppedTransactions(newEvents)
 
     // Remove all events that currently awaiting confirmation
-    await Event.destroy({ where: { contractAddress: this.contract.options.address } })
+    await Event.destroy({ where: { contractAddress: this.contract.address } })
     await this.processEvents(newEvents, currentBlock.number)
     this.blockTracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
   }
