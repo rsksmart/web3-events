@@ -5,6 +5,7 @@ import path from 'path'
 import { Sequelize, SequelizeOptions } from 'sequelize-typescript'
 import { loggingFactory } from '../src/utils'
 import sqlFormatter from 'sql-formatter'
+import Sinon from 'sinon'
 
 export function sleep<T> (ms: number, ...args: T[]): Promise<T> {
   return new Promise(resolve => setTimeout(() => resolve(...args), ms))
@@ -100,7 +101,7 @@ export function blockMock (blockNumber: number, blockHash = '0x123', options: Pa
   return block
 }
 
-export function delayedPromise (): [Promise<any>, (...args: any[]) => void] {
+export function delayedPromise (): [Promise<any>, (...args: any[]) => void, Sinon.SinonSpy] {
   let success: () => void
   const promise = new Promise((resolve) => {
     success = resolve

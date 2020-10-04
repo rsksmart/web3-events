@@ -5,7 +5,7 @@ import type { BlockHeader, Eth } from 'web3-eth'
 import { Contract } from './contract'
 import Event from './event.model'
 import {
-  EventsEmitter, EventEmitterEvents, EventsEmitterEmptyEvents,
+  EventsEmitter, EventsEmitterEventsNames, EventsEmitterEmptyEvents,
   EventsEmitterOptions,
   Logger,
   NewBlockEmitter,
@@ -24,7 +24,7 @@ import type { EventInterface } from './event.model'
  * It supports block's confirmation, where new events are stored to DB and only after configured number of new
  * blocks are emitted to consumers for further processing.
  */
-export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartStopEventEmitter<EventEmitterEvents<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
+export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartStopEventEmitter<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
   public readonly blockTracker: BlockTracker
   protected readonly newBlockEmitter: NewBlockEmitter
   protected readonly startingBlock: string | number
@@ -33,6 +33,8 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
   protected readonly eth: Eth
   protected readonly semaphore: Sema
   protected readonly confirmations: number
+  private readonly serialListeners?: boolean
+  private readonly serialProcessing?: boolean
   private readonly confirmator?: ModelConfirmator
   private isInitialized = false
   private confirmationRoutine?: (...args: any[]) => void
@@ -47,6 +49,8 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     this.semaphore = new Sema(1) // Allow only one caller
     this.blockTracker = blockTracker
     this.newBlockEmitter = newBlockEmitter
+    this.serialListeners = options?.serialListeners
+    this.serialProcessing = options?.serialProcessing
 
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
@@ -100,10 +104,25 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
    */
   abstract stopEvents (): void
 
-  public emitEvent (data: E): void {
-    this.logger.debug('Emitting event', data)
-    this.blockTracker.setLastProcessedBlockIfHigher(data.blockNumber, data.blockHash)
-    this.emit(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
+  public async emitEvents (events: E[]): Promise<void> {
+    const emittingFnc = this.serialListeners ? this.emitSerial.bind(this) : this.emit.bind(this)
+
+    for (const data of events) {
+      this.logger.debug('Emitting event', data)
+
+      // Will await for all the listeners to process the event before moving forward
+      if (this.serialProcessing) {
+        try {
+          await emittingFnc(NEW_EVENT_EVENT_NAME, data)
+        } catch (e) {
+          this.emit('error', e)
+        }
+      } else { // Does not await and just move on
+        emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
+      }
+
+      this.blockTracker.setLastProcessedBlockIfHigher(data.blockNumber, data.blockHash)
+    }
   }
 
   protected serializeEvent (data: EventData): EventInterface {
@@ -142,7 +161,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     }
 
     if (this.confirmations === 0) {
-      events.forEach(this.emitEvent.bind(this))
+      await this.emitEvents(events)
       return
     }
 
@@ -167,7 +186,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
       .filter(event => event.blockNumber <= thresholdBlock)
     this.logger.info(`${eventsToBeEmitted.length} events to be emitted.`)
 
-    eventsToBeEmitted.forEach(this.emitEvent.bind(this))
+    await this.emitEvents(eventsToBeEmitted)
   }
 
   /**

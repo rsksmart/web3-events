@@ -24,7 +24,7 @@ export interface Confirmator {
   runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
 }
 
-export type EventEmitterEvents<E> = {
+export type EventsEmitterEventsNames<E> = {
   [NEW_EVENT_EVENT_NAME]: E
   [REORG_OUT_OF_RANGE_EVENT_NAME]: number
   'error': object
@@ -34,7 +34,7 @@ export type EventsEmitterEmptyEvents = keyof {
   [REORG_OUT_OF_RANGE_EVENT_NAME]: void
   [REORG_EVENT_NAME]: void
 }
-export type EventsEmitter<E> = Emittery.Typed<EventEmitterEvents<E>, EventsEmitterEmptyEvents>
+export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents>
 
 export interface Logger {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,6 +76,23 @@ export interface EventsEmitterOptions {
   // Specifies the starting block to process events (especially the past ones) on blockchain
   startingBlock?: number | string
 
-  // Instance of Confirmator that handles confirmations
+  /**
+   * Instance of Confirmator that handles confirmations
+   */
   confirmator?: ModelConfirmator
+
+  /**
+   * Defines if the listeners should be processed serially.
+   *
+   * This effects if you have multiple listeners on the EventsEmitter, where it will be awaited
+   * for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
+   */
+  serialListeners?: boolean
+
+  /**
+   * Defines if the events should be kept in order and processed serially.
+   *
+   * This will await for the processing of a event to finish before moving to next event.
+   */
+  serialProcessing?: boolean
 }
