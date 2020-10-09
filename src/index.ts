@@ -81,7 +81,7 @@ export class Web3Events {
     const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
     const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNewBlockEmitter
 
-    return new PollingEventsEmitter(this.eth, contract, blockTracker, newBlockEmitter, this.logger, undefined, options)
+    return new PollingEventsEmitter(this.eth, contract, blockTracker, newBlockEmitter, this.logger, options)
   }
 
   private resolveNewBlockEmitter (value?: NewBlockEmitterOptions | NewBlockEmitter): NewBlockEmitter | undefined {

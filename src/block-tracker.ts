@@ -1,3 +1,5 @@
+import Emittery from 'emittery'
+
 const LAST_FETCHED_BLOCK_NUMBER_KEY = 'lastFetchedBlockNumber'
 const LAST_FETCHED_BLOCK_HASH_KEY = 'lastFetchedBlockHash'
 const LAST_PROCESSED_BLOCK_NUMBER_KEY = 'lastProcessedBlockNumber'
@@ -14,16 +16,18 @@ export interface BlockTrackerStore {
  * Simple class for persistence of last processed block in order to not crawl the whole blockchain upon every restart
  * of the server.
  */
-export class BlockTracker {
+export class BlockTracker extends Emittery.Typed<never, 'fetchedBlockSet' | 'processedBlockSet'> {
   private readonly store: BlockTrackerStore
 
   constructor (store: BlockTrackerStore) {
+    super()
     this.store = store
   }
 
   setLastFetchedBlock (blockNumber: number, blockHash: string): void {
     this.store[LAST_FETCHED_BLOCK_HASH_KEY] = blockHash
     this.store[LAST_FETCHED_BLOCK_NUMBER_KEY] = blockNumber
+    this.emit('fetchedBlockSet')
   }
 
   getLastFetchedBlock (): [number?, string?] {
@@ -37,6 +41,7 @@ export class BlockTracker {
 
     this.store[LAST_PROCESSED_BLOCK_HASH_KEY] = blockHash
     this.store[LAST_PROCESSED_BLOCK_NUMBER_KEY] = blockNumber
+    this.emit('processedBlockSet')
   }
 
   getLastProcessedBlock (): [number?, string?] {

@@ -2,6 +2,7 @@ import Emittery from 'emittery'
 import debug from 'debug'
 
 import type { Logger } from './definitions'
+import { keccak256 } from 'web3-utils'
 
 export function loggingFactory (name: string): Logger {
   const log = debug(name)
@@ -42,6 +43,17 @@ export function initLogger (name: string, baseLogger?: Logger): Logger {
   } else {
     return loggingFactory(name)
   }
+}
+
+export function hashTopics (topics?: (string[] | string)[]): (string[] | string)[] {
+  if (!topics) return []
+  return topics.map((e: string | string[]) => {
+    if (Array.isArray(e)) {
+      return e.map(keccak256)
+    } else {
+      return keccak256(e)
+    }
+  })
 }
 
 /**

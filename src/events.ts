@@ -1,4 +1,4 @@
-import { EventData } from 'web3-eth-contract'
+import { EventData, PastEventOptions } from 'web3-eth-contract'
 import { Sema } from 'async-sema'
 import type { BlockHeader, Eth } from 'web3-eth'
 
@@ -12,9 +12,9 @@ import {
   INIT_FINISHED_EVENT_NAME,
   NEW_BLOCK_EVENT_NAME,
   NEW_EVENT_EVENT_NAME,
-  REORG_EVENT_NAME, REORG_OUT_OF_RANGE_EVENT_NAME
+  REORG_EVENT_NAME, REORG_OUT_OF_RANGE_EVENT_NAME, ProgressInfo, PROGRESS_EVENT_NAME
 } from './definitions'
-import { AutoStartStopEventEmitter, errorHandler, initLogger, loggingFactory } from './utils'
+import { AutoStartStopEventEmitter, errorHandler, hashTopics, initLogger } from './utils'
 import { ModelConfirmator } from './confirmator'
 import type { BlockTracker } from './block-tracker'
 import type { EventInterface } from './event.model'
@@ -33,9 +33,11 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
   protected readonly eth: Eth
   protected readonly semaphore: Sema
   protected readonly confirmations: number
+  protected readonly topics?: (string[] | string)[]
   private readonly serialListeners?: boolean
   private readonly serialProcessing?: boolean
   private readonly confirmator?: ModelConfirmator
+  private readonly batchSize: number
   private isInitialized = false
   private confirmationRoutine?: (...args: any[]) => void
 
@@ -46,11 +48,17 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     this.eventNames = options?.events
     this.startingBlock = options?.startingBlock ?? 'genesis'
     this.confirmations = options?.confirmations ?? 0
+    this.topics = hashTopics(options?.topics)
+    this.batchSize = options?.batchSize ?? 120 // 120 blocks = RSK one hour of blocks
     this.semaphore = new Sema(1) // Allow only one caller
     this.blockTracker = blockTracker
     this.newBlockEmitter = newBlockEmitter
     this.serialListeners = options?.serialListeners
     this.serialProcessing = options?.serialProcessing
+
+    if (!this.topics && !this.eventNames) {
+      throw new Error('You have to specify options.topics or options.events!')
+    }
 
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
@@ -97,49 +105,15 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
   /**
    * Start fetching new events. Depends on specified strategy
    */
-  abstract startEvents (): void
+  protected abstract startEvents (): void
 
   /**
    * Stop fetching new events. Depends on specified strategy.
    */
-  abstract stopEvents (): void
-
-  public async emitEvents (events: E[]): Promise<void> {
-    const emittingFnc = this.serialListeners ? this.emitSerial.bind(this) : this.emit.bind(this)
-
-    for (const data of events) {
-      this.logger.debug('Emitting event', data)
-
-      // Will await for all the listeners to process the event before moving forward
-      if (this.serialProcessing) {
-        try {
-          await emittingFnc(NEW_EVENT_EVENT_NAME, data)
-        } catch (e) {
-          this.emit('error', e)
-        }
-      } else { // Does not await and just move on
-        emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
-      }
-
-      this.blockTracker.setLastProcessedBlockIfHigher(data.blockNumber, data.blockHash)
-    }
-  }
-
-  protected serializeEvent (data: EventData): EventInterface {
-    this.logger.debug(`New ${data.event} event to be confirmed. Transaction ${data.transactionHash}.${data.logIndex}`)
-    return {
-      blockNumber: data.blockNumber,
-      transactionHash: data.transactionHash,
-      logIndex: data.logIndex,
-      contractAddress: this.contract.address,
-      event: data.event,
-      targetConfirmation: this.confirmations,
-      content: JSON.stringify(data)
-    }
-  }
+  protected abstract stopEvents (): void
 
   /**
-   * Main method for processing events. It should be called after retrieving Events from blockchain.
+   * Method for processing events. It should be called after retrieving Events from blockchain.
    *
    * @param events
    * @param currentBlockNumber
@@ -195,34 +169,87 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
    * @param from
    * @param to
    */
-  async processPastEvents (from: number | string, to: number | string): Promise<void> {
+  private async processPastEvents (from: number | string, to: number | string): Promise<void> {
     await this.semaphore.acquire()
     try {
       const currentBlock = await this.eth.getBlock('latest')
-      let toHash: string
+
+      if (from === 'genesis') {
+        from = 0
+      }
 
       if (to === 'latest') {
         to = currentBlock.number
-        toHash = currentBlock.hash
-      } else {
-        toHash = (await this.eth.getBlock(to)).hash
       }
 
-      this.logger.info(`=> Processing past events from ${from} to ${to}`)
+      this.logger.info('=> Processing past')
       const startTime = process.hrtime()
-      // TODO: There should be TOPICS here!
-      const events = (await this.contract.getPastEvents('allEvents', {
-        fromBlock: from,
-        toBlock: to
-      })) as unknown as E[]
-
-      await this.processEvents(events, currentBlock.number)
-      this.blockTracker.setLastFetchedBlock(to as number, toHash)
-
+      await this.batchFetchAndProcessEvents(from as number, to as number, currentBlock)
       const [secondsLapsed] = process.hrtime(startTime)
       this.logger.info(`=> Finished processing past events in ${secondsLapsed}s`)
     } finally {
       this.semaphore.release()
+    }
+  }
+
+  /**
+   * Fetch and process events in batches.
+   * The interval defined by fromBlock and toBlock is closed, eq. "or equal".
+   *
+   * @param fromBlock
+   * @param toBlock
+   * @param currentBlock
+   */
+  protected async batchFetchAndProcessEvents (fromBlock: number, toBlock: number, currentBlock: BlockHeader): Promise<void> {
+    if (typeof fromBlock !== 'number' || typeof toBlock !== 'number') {
+      throw new TypeError('fromBlock and toBlock has to be numbers!')
+    }
+
+    if (toBlock < fromBlock) {
+      throw new Error('fromBlock has to be smaller then toBlock!')
+    }
+
+    const options: PastEventOptions = {}
+
+    if (this.topics) {
+      options.topics = this.topics
+    }
+
+    this.logger.info(`Fetching and processing events from block ${fromBlock} to ${toBlock}`)
+    const countOfBatches = toBlock === fromBlock ? 1 : Math.ceil((toBlock - fromBlock) / (this.batchSize - 1))
+    this.logger.verbose(`Will process ${countOfBatches} batches`)
+
+    for (let batch = 0; batch < countOfBatches; batch++) {
+      // The first batch starts at fromBlock sharp, but the others has to start +1 to avoid reprocessing of the bordering block
+      let batchFromBlock, batchToBlock
+
+      if (batch === 0) {
+        batchFromBlock = fromBlock
+        batchToBlock = Math.min(batchFromBlock + this.batchSize - 1, toBlock)
+      } else {
+        batchFromBlock = fromBlock + (batch * this.batchSize)
+        batchToBlock = Math.min(batchFromBlock + this.batchSize - 1, toBlock)
+      }
+
+      const batchToBlockHeader = await this.eth.getBlock(batchToBlock)
+      this.logger.verbose(`Processing batch no. ${batch + 1}: from block ${batchFromBlock} to ${batchToBlock}`)
+      const events = (await this.contract.getPastEvents('allEvents', {
+        fromBlock: batchFromBlock,
+        toBlock: batchToBlock,
+        ...options
+      })) as unknown as E[]
+      this.logger.debug('Received events for the batch: ', events)
+
+      const progressInfo: ProgressInfo = {
+        stepsComplete: batch + 1,
+        totalSteps: countOfBatches,
+        stepFromBlock: batchFromBlock,
+        stepToBlock: batchToBlock
+      }
+      this.emit(PROGRESS_EVENT_NAME, progressInfo).catch(e => this.emit('error', e))
+
+      await this.processEvents(events, currentBlock.number)
+      this.blockTracker.setLastFetchedBlock(batchToBlockHeader.number, batchToBlockHeader.hash)
     }
   }
 
@@ -274,6 +301,40 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     await this.processEvents(newEvents, currentBlock.number)
     this.blockTracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
   }
+
+  private async emitEvents (events: E[]): Promise<void> {
+    const emittingFnc = this.serialListeners ? this.emitSerial.bind(this) : this.emit.bind(this)
+
+    for (const data of events) {
+      this.logger.debug('Emitting event', data)
+
+      // Will await for all the listeners to process the event before moving forward
+      if (this.serialProcessing) {
+        try {
+          await emittingFnc(NEW_EVENT_EVENT_NAME, data)
+        } catch (e) {
+          this.emit('error', e)
+        }
+      } else { // Does not await and just move on
+        emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
+      }
+
+      this.blockTracker.setLastProcessedBlockIfHigher(data.blockNumber, data.blockHash)
+    }
+  }
+
+  private serializeEvent (data: EventData): EventInterface {
+    this.logger.debug(`New ${data.event} event to be confirmed. Transaction ${data.transactionHash}.${data.logIndex}`)
+    return {
+      blockNumber: data.blockNumber,
+      transactionHash: data.transactionHash,
+      logIndex: data.logIndex,
+      contractAddress: this.contract.address,
+      event: data.event,
+      targetConfirmation: this.confirmations,
+      content: JSON.stringify(data)
+    }
+  }
 }
 
 /**
@@ -281,24 +342,13 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
  *
  * Polling is triggered using the NewBlockEmitter and is therefore up to the user
  * to chose what new-block strategy will employ.
- * He has choice from using listening or polling versions of the emitter.
- *
- * @see PollingNewBlockEmitter
- * @see ListeningNewBlockEmitter
  */
 export class PollingEventsEmitter<E extends EventData> extends BaseEventsEmitter<E> {
-  private readonly topics?: string[] | string[][]
   private pollingUnsubscribe?: Function
 
-  constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, topics?: string[] | string[][], options?: EventsEmitterOptions) {
+  constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {
     const logger = initLogger('events:polling', baseLogger)
     super(eth, contract, blockTracker, newBlockEmitter, logger, options)
-
-    if (!topics && !options?.events) {
-      throw new Error('You have to specify topics or events!')
-    }
-
-    this.topics = topics
   }
 
   async poll (currentBlock: BlockHeader): Promise<void> {
@@ -311,7 +361,7 @@ export class PollingEventsEmitter<E extends EventData> extends BaseEventsEmitter
         return this.handleReorg(currentBlock)
       }
 
-      const [lastFetchedBlockNumber] = this.blockTracker.getLastFetchedBlock()
+      const lastFetchedBlockNumber = this.blockTracker.getLastFetchedBlock()[0] as number
 
       // Nothing new, lets fast-forward
       if (lastFetchedBlockNumber === currentBlock.number) {
@@ -319,16 +369,11 @@ export class PollingEventsEmitter<E extends EventData> extends BaseEventsEmitter
         return
       }
 
-      this.logger.info(`Checking new events between blocks ${lastFetchedBlockNumber}-${currentBlock.number}`)
-      const events = await this.contract.getPastEvents('allEvents', {
-        fromBlock: (lastFetchedBlockNumber as number) + 1, // +1 because both fromBlock and toBlock is "or equal"
-        toBlock: currentBlock.number,
-        topics: this.topics
-      }) as unknown as E[]
-      this.logger.debug('Received events: ', events)
-
-      await this.processEvents(events, currentBlock.number)
-      this.blockTracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
+      await this.batchFetchAndProcessEvents(
+        lastFetchedBlockNumber + 1, // +1 because fromBlock and toBlock are "or equal", eq. closed interval, so we need to avoid duplications
+        currentBlock.number,
+        currentBlock
+      )
     } catch (e) {
       this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
     } finally {
