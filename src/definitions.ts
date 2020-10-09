@@ -133,4 +133,11 @@ export interface EventsEmitterOptions {
    * This will await for the processing of a event to finish before moving to next event.
    */
   serialProcessing?: boolean
+
+  /**
+   * Defines if the EventsEmitter should automatically start listening on events when a events listener
+   * for events is attached.
+   * By default this is true.
+   */
+  autoStart?: boolean
 }

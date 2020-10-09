@@ -42,7 +42,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
   private confirmationRoutine?: (...args: any[]) => void
 
   protected constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {
-    super(initLogger('', baseLogger), NEW_EVENT_EVENT_NAME)
+    super(initLogger('', baseLogger), NEW_EVENT_EVENT_NAME, options?.autoStart)
     this.eth = eth
     this.contract = contract
     this.eventNames = options?.events

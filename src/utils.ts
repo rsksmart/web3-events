@@ -149,32 +149,34 @@ export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = n
   private isStarted = false
   protected logger: Logger
 
-  protected constructor (logger: Logger, triggerEventName: string) {
+  protected constructor (logger: Logger, triggerEventName: string, autoStart = true) {
     super()
     this.logger = logger
     this.triggerEventName = triggerEventName
 
-    // TODO: Awaiting resolution of https://github.com/sindresorhus/emittery/issues/63
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-    // @ts-ignore
-    this.on(Emittery.listenerAdded, ({ eventName }: Emittery.ListenerChangedData) => {
-      if (eventName === this.triggerEventName && !this.isStarted) {
-        this.logger.verbose('Listener attached, starting processing events.')
-        this.start()
-        this.isStarted = true
-      }
-    })
+    if (autoStart) {
+      // TODO: Awaiting resolution of https://github.com/sindresorhus/emittery/issues/63
+      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+      // @ts-ignore
+      this.on(Emittery.listenerAdded, ({ eventName }: Emittery.ListenerChangedData) => {
+        if (eventName === this.triggerEventName && !this.isStarted) {
+          this.logger.verbose('Listener attached, starting processing events.')
+          this.start()
+          this.isStarted = true
+        }
+      })
 
-    // TODO: Awaiting resolution of https://github.com/sindresorhus/emittery/issues/63
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-    // @ts-ignore
-    this.on(Emittery.listenerRemoved, ({ eventName }: Emittery.ListenerChangedData) => {
-      if (this.listenerCount(this.triggerEventName) === 0) {
-        this.logger.verbose('Listener removing, stopping processing events.')
-        this.stop()
-        this.isStarted = false
-      }
-    })
+      // TODO: Awaiting resolution of https://github.com/sindresorhus/emittery/issues/63
+      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+      // @ts-ignore
+      this.on(Emittery.listenerRemoved, ({ eventName }: Emittery.ListenerChangedData) => {
+        if (this.listenerCount(this.triggerEventName) === 0) {
+          this.logger.verbose('Listener removing, stopping processing events.')
+          this.stop()
+          this.isStarted = false
+        }
+      })
+    }
   }
 
   abstract start (): void

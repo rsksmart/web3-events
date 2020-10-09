@@ -21,8 +21,8 @@ describe('utils', () => {
     const EVENT_NAME = 'hello'
 
     class DummyImplementation extends AutoStartStopEventEmitter<any> {
-      constructor (eventName: string) {
-        super(loggingFactory('dummy'), eventName)
+      constructor (eventName: string, autoStart = true) {
+        super(loggingFactory('dummy'), eventName, autoStart)
       }
 
       start (): void {
@@ -45,6 +45,14 @@ describe('utils', () => {
 
       expect(startSpy).to.be.calledOnce()
       expect(stopSpy).to.not.be.called()
+    })
+
+    it('should not start when autostart is off', async () => {
+      const emitter = new DummyImplementation(EVENT_NAME, false)
+      emitter.on(EVENT_NAME, listenerSpy)
+      await setImmediatePromise()
+
+      expect(startSpy).to.not.be.called()
     })
 
     it('should start only once', async () => {
