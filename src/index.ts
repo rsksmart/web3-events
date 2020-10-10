@@ -43,7 +43,7 @@ export type EventsEmitterCreationOptions = {
 export class Web3Events {
   private readonly logger: Logger
   private readonly eth: Eth
-  private readonly defaultNewBlockEmitter: NewBlockEmitter
+  private readonly defaultNBEmitter: NewBlockEmitter
   private readonly store: Record<string, any> | undefined
   private readonly contractsUsed: Set<string>
   private static initialized = false
@@ -65,7 +65,7 @@ export class Web3Events {
     this.contractsUsed = new Set()
 
     // Default newBlockEmitter
-    this.defaultNewBlockEmitter = this.resolveNewBlockEmitter(defaultNewBlockEmitter) ?? new PollingNewBlockEmitter(eth)
+    this.defaultNBEmitter = this.resolveNewBlockEmitter(defaultNewBlockEmitter) ?? new PollingNewBlockEmitter(eth)
   }
 
   static async init (sequelize: Sequelize): Promise<void> {
@@ -108,9 +108,13 @@ export class Web3Events {
       throw new Error('You have to either set global "store" object in constructor or pass BlockTracker instance!')
     }
     const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
-    const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNewBlockEmitter
+    const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNBEmitter
 
     return new PollingEventsEmitter(this.eth, contract, blockTracker, newBlockEmitter, this.logger, options)
+  }
+
+  get defaultNewBlockEmitter (): NewBlockEmitter {
+    return this.defaultNBEmitter
   }
 
   private resolveNewBlockEmitter (value?: NewBlockEmitterOptions | NewBlockEmitter): NewBlockEmitter | undefined {
