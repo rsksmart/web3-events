@@ -22,7 +22,7 @@ describe('utils', () => {
 
     class DummyImplementation extends AutoStartStopEventEmitter<any> {
       constructor (eventName: string, autoStart = true) {
-        super(loggingFactory('dummy'), eventName, autoStart)
+        super(loggingFactory('web3events:dummy'), eventName, autoStart)
       }
 
       start (): void {

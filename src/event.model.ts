@@ -1,39 +1,13 @@
-import { Table, Column, Model, DataType } from 'sequelize-typescript'
-
-@Table({
-  freezeTableName: true,
-  tableName: 'event',
-  indexes: [
-    {
-      unique: true,
-      fields: ['transactionHash', 'logIndex']
-    }
-  ]
-})
+import { Model, DataTypes } from 'sequelize'
 
 export default class Event extends Model {
-  @Column(DataType.INTEGER)
+  id!: number
   blockNumber!: number
-
-  @Column(DataType.STRING(66))
   transactionHash!: string
-
-  @Column(DataType.INTEGER)
-  logIndex!: number
-
-  @Column(DataType.INTEGER)
   targetConfirmation!: number
-
-  @Column(DataType.STRING(66))
   contractAddress!: string
-
-  @Column(DataType.TEXT)
   event!: string
-
-  @Column(DataType.TEXT)
   content!: string
-
-  @Column({ type: DataType.BOOLEAN, defaultValue: false })
   emitted!: boolean
 
   public getConfirmationsCount (currentBlockNumber: number): number {
@@ -41,6 +15,16 @@ export default class Event extends Model {
   }
 }
 
+export const EventModelDefinition = {
+  blockNumber: { type: DataTypes.INTEGER, allowNull: false },
+  transactionHash: { type: DataTypes.STRING(66), allowNull: false },
+  targetConfirmation: { type: DataTypes.INTEGER, allowNull: false },
+  contractAddress: { type: DataTypes.STRING(66), allowNull: false },
+  event: { type: DataTypes.TEXT, allowNull: false },
+  content: { type: DataTypes.TEXT },
+  emitted: { type: DataTypes.BOOLEAN, defaultValue: false }
+}
+
 export type EventInterface =
-  Pick<Event, 'blockNumber' | 'transactionHash' | 'logIndex' | 'contractAddress' | 'event' | 'targetConfirmation' | 'content'>
+  Pick<Event, 'blockNumber' | 'transactionHash' | 'contractAddress' | 'event' | 'targetConfirmation' | 'content'>
   & { emitted?: boolean }

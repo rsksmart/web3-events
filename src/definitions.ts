@@ -1,10 +1,8 @@
-/**
- * Basic logger interface used around the application.
- */
 import type Emittery from 'emittery'
+import type { EventData } from 'web3-eth-contract'
+import type { BlockHeader } from 'web3-eth'
+
 import type { ModelConfirmator } from './confirmator'
-import { EventData } from 'web3-eth-contract'
-import { BlockHeader } from 'web3-eth'
 
 export const NEW_EVENT_EVENT_NAME = 'newEvent'
 export const INIT_FINISHED_EVENT_NAME = 'initFinished'
@@ -15,6 +13,8 @@ export const PROGRESS_EVENT_NAME = 'progress'
 export const NEW_CONFIRMATION_EVENT_NAME = 'newConfirmation'
 export const INVALID_CONFIRMATION_EVENT_NAME = 'invalidConfirmation'
 
+export const EVENTS_MODEL_TABLE_NAME = 'web3events_event'
+
 export type NewBlockEmitterEvents = { [NEW_BLOCK_EVENT_NAME]: BlockHeader, 'error': object }
 export type NewBlockEmitter = Emittery.Typed<NewBlockEmitterEvents>
 
@@ -23,7 +23,13 @@ export interface Confirmator {
   runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
 }
 
+/**
+ * Object emitted by EventsEmitter when batch fetching and processing events
+ */
 export interface ProgressInfo {
+  /**
+   * Starts with 1 and go up to totalSteps (including)
+   */
   stepsComplete: number
   totalSteps: number
   stepFromBlock: number
@@ -43,10 +49,10 @@ export type EventsEmitterEmptyEvents = keyof {
 }
 export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents>
 
+/**
+ * Basic logger interface used around the application.
+ */
 export interface Logger {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  critical (message: string | Error | object, ...meta: any[]): never
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   error (message: string | Error | object, ...meta: any[]): void
 

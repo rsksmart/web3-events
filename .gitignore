@@ -21,3 +21,4 @@ coverage
 
 # Dependency directory
 node_modules
+db.sqlite

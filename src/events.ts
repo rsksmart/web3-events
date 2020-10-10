@@ -83,7 +83,10 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
 
   start (): void {
     if (!this.isInitialized) {
-      this.init().catch(error => this.emit('error', error))
+      this.init().catch(error => {
+        this.logger.error('Error when initializing emitter:\n' + JSON.stringify(error, undefined, 2))
+        this.emit('error', error)
+      })
     }
 
     this.startEvents()
@@ -146,15 +149,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
       .filter(event => event.blockNumber > thresholdBlock)
     this.logger.info(`${eventsToBeConfirmed.length} events to be confirmed.`)
 
-    try {
-      await Event.bulkCreate(eventsToBeConfirmed.map(this.serializeEvent.bind(this))) // Lets store them to DB
-    } catch (e) {
-      if (e.name === 'SequelizeUniqueConstraintError') {
-        throw new Error('Duplicated events!')
-      }
-
-      throw e
-    }
+    await Event.bulkCreate(eventsToBeConfirmed.map(this.serializeEvent.bind(this))) // Lets store them to DB
 
     const eventsToBeEmitted = events
       .filter(event => event.blockNumber <= thresholdBlock)
@@ -324,11 +319,10 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
   }
 
   private serializeEvent (data: EventData): EventInterface {
-    this.logger.debug(`New ${data.event} event to be confirmed. Transaction ${data.transactionHash}.${data.logIndex}`)
+    this.logger.debug(`New ${data.event} event to be confirmed. Block ${data.blockNumber}, transaction ${data.transactionHash}`)
     return {
       blockNumber: data.blockNumber,
       transactionHash: data.transactionHash,
-      logIndex: data.logIndex,
       contractAddress: this.contract.address,
       event: data.event,
       targetConfirmation: this.confirmations,
@@ -376,6 +370,7 @@ export class PollingEventsEmitter<E extends EventData> extends BaseEventsEmitter
       )
     } catch (e) {
       this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
+      this.emit('error', e)
     } finally {
       this.semaphore.release()
     }

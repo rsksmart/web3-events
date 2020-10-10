@@ -2,7 +2,7 @@ import { BlockHeader, BlockTransactionString, TransactionReceipt, Transaction } 
 import { Substitute } from '@fluffy-spoon/substitute'
 import { EventData } from 'web3-eth-contract'
 import path from 'path'
-import { Sequelize, SequelizeOptions } from 'sequelize-typescript'
+import { Options, Sequelize } from 'sequelize'
 import { loggingFactory } from '../src/utils'
 import sqlFormatter from 'sql-formatter'
 import Sinon from 'sinon'
@@ -22,18 +22,16 @@ function formatLogs (msg: string): string {
 }
 
 export function sequelizeFactory (): Sequelize {
-  const logger = loggingFactory('db')
-  const dbSettings: SequelizeOptions = {
-    models: [path.join(__dirname, '../src/**/*.model.+(ts|js)')],
-    modelMatch: (filename: string, member: string): boolean => {
-      return filename.substring(0, filename.indexOf('.model')) === member.toLowerCase()
-    },
-    logging: (msg) => logger.debug(formatLogs(msg)),
+  const logger = loggingFactory('web3events:db')
+  const dbSettings: Options = {
+    dialect: 'sqlite',
+    storage: path.join(__dirname, '..', 'db.sqlite'),
+    logging: (msg: any) => logger.debug(formatLogs(msg)),
     // @ts-ignore
     transactionType: 'IMMEDIATE'
   }
 
-  return new Sequelize('sqlite:../db.sqlite', dbSettings)
+  return new Sequelize(dbSettings)
 }
 
 export function receiptMock (blockNumber?: number, status = true): TransactionReceipt {

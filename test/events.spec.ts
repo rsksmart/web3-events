@@ -6,7 +6,7 @@ import dirtyChai from 'dirty-chai'
 import chaiAsPromised from 'chai-as-promised'
 import util from 'util'
 import sinonChai from 'sinon-chai'
-import { Sequelize } from 'sequelize-typescript'
+import { Sequelize } from 'sequelize'
 import { EventData } from 'web3-eth-contract'
 import Emittery from 'emittery'
 
@@ -24,7 +24,7 @@ import {
   NEW_EVENT_EVENT_NAME,
   NewBlockEmitter, PROGRESS_EVENT_NAME,
   REORG_EVENT_NAME,
-  REORG_OUT_OF_RANGE_EVENT_NAME
+  REORG_OUT_OF_RANGE_EVENT_NAME, Web3Events
 } from '../src'
 
 chai.use(sinonChai)
@@ -41,9 +41,9 @@ export class DummyEventsEmitter extends BaseEventsEmitter<EventData> {
     let logger: Logger
 
     if (!name) {
-      logger = loggingFactory('blockchain:events:dummy')
+      logger = loggingFactory('web3events:events:dummy')
     } else {
-      logger = loggingFactory('blockchain:events:' + name)
+      logger = loggingFactory('web3events:events:' + name)
     }
 
     super(eth, contract, blockTracker, newBlockEmitter, logger, options)
@@ -76,6 +76,7 @@ describe('BaseEventsEmitter', () => {
 
   before((): void => {
     sequelize = sequelizeFactory()
+    Web3Events.init(sequelize)
   })
 
   beforeEach(async () => {
@@ -84,10 +85,10 @@ describe('BaseEventsEmitter', () => {
 
   it('should wait for previous processing finished', async function () {
     const events = [
-      eventMock({ blockNumber: 4, transactionHash: '1', logIndex: 1 }),
-      eventMock({ blockNumber: 8, transactionHash: '2', logIndex: 1 }),
-      eventMock({ blockNumber: 9, transactionHash: '3', logIndex: 1 }),
-      eventMock({ blockNumber: 10, transactionHash: '4', logIndex: 1 })
+      eventMock({ blockNumber: 4, transactionHash: '1' }),
+      eventMock({ blockNumber: 8, transactionHash: '2' }),
+      eventMock({ blockNumber: 9, transactionHash: '3' }),
+      eventMock({ blockNumber: 10, transactionHash: '4' })
     ]
 
     const eth = Substitute.for<Eth>()
@@ -121,7 +122,7 @@ describe('BaseEventsEmitter', () => {
   })
 
   it('should process listeners in serial order when configured', async function () {
-    const events = [eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1', logIndex: 1 })]
+    const events = [eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1' })]
 
     const eth = Substitute.for<Eth>()
     eth.getBlock('latest').resolves(blockMock(10))
@@ -191,10 +192,10 @@ describe('BaseEventsEmitter', () => {
 
   it('should process events in serial order when configured', async function () {
     const events = [
-      eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1', logIndex: 1 }),
-      eventMock({ blockHash: '0x124', blockNumber: 8, transactionHash: '2', logIndex: 1 }),
-      eventMock({ blockHash: '0x125', blockNumber: 9, transactionHash: '3', logIndex: 1 }),
-      eventMock({ blockHash: '0x126', blockNumber: 10, transactionHash: '4', logIndex: 1 })
+      eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1' }),
+      eventMock({ blockHash: '0x124', blockNumber: 8, transactionHash: '2' }),
+      eventMock({ blockHash: '0x125', blockNumber: 9, transactionHash: '3' }),
+      eventMock({ blockHash: '0x126', blockNumber: 10, transactionHash: '4' })
     ]
 
     const eth = Substitute.for<Eth>()
@@ -371,10 +372,10 @@ describe('BaseEventsEmitter', () => {
   describe('with confirmations', () => {
     it('should process past events', async function () {
       const events = [
-        eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1', logIndex: 1 }),
-        eventMock({ blockHash: '0x125', blockNumber: 8, transactionHash: '2', logIndex: 1 }),
-        eventMock({ blockHash: '0x123', blockNumber: 9, transactionHash: '3', logIndex: 1 }),
-        eventMock({ blockHash: '0x123', blockNumber: 10, transactionHash: '4', logIndex: 1 })
+        eventMock({ blockHash: '0x123', blockNumber: 4, transactionHash: '1' }),
+        eventMock({ blockHash: '0x125', blockNumber: 8, transactionHash: '2' }),
+        eventMock({ blockHash: '0x123', blockNumber: 9, transactionHash: '3' }),
+        eventMock({ blockHash: '0x123', blockNumber: 10, transactionHash: '4' })
       ]
 
       const eth = Substitute.for<Eth>()
@@ -390,7 +391,7 @@ describe('BaseEventsEmitter', () => {
       const spy = sinon.spy()
       const eventsEmitter = new DummyEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, options)
       eventsEmitter.on(NEW_EVENT_EVENT_NAME, spy)
-      await sleep(100)
+      await sleep(1000)
 
       expect(spy).to.be.calledTwice()
       eth.received(1).getBlock('latest')
@@ -415,10 +416,10 @@ describe('BaseEventsEmitter', () => {
       eventsEmitter.on(NEW_EVENT_EVENT_NAME, spy)
 
       const events = [
-        eventMock({ blockNumber: 4, transactionHash: '1', logIndex: 1 }),
-        eventMock({ blockNumber: 8, transactionHash: '2', logIndex: 1 }),
-        eventMock({ blockNumber: 9, transactionHash: '3', logIndex: 1 }),
-        eventMock({ blockNumber: 10, transactionHash: '4', logIndex: 1 })
+        eventMock({ blockNumber: 4, transactionHash: '1' }),
+        eventMock({ blockNumber: 8, transactionHash: '2' }),
+        eventMock({ blockNumber: 9, transactionHash: '3' }),
+        eventMock({ blockNumber: 10, transactionHash: '4' })
       ]
       await eventsEmitter.createEvent(events)
 
@@ -496,6 +497,7 @@ describe('PollingEventsEmitter', function () {
 
   before((): void => {
     sequelize = sequelizeFactory()
+    Web3Events.init(sequelize)
   })
 
   beforeEach(async () => {
@@ -521,7 +523,7 @@ describe('PollingEventsEmitter', function () {
     const newEventSpy = sinon.spy()
     const reorgSpy = sinon.spy()
     const reorgOutOfRangeSpy = sinon.spy()
-    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
     eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
     eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
     eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
@@ -562,7 +564,7 @@ describe('PollingEventsEmitter', function () {
     const newEventSpy = sinon.spy()
     const reorgSpy = sinon.spy()
     const reorgOutOfRangeSpy = sinon.spy()
-    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
     eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
     eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
     eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
@@ -600,7 +602,7 @@ describe('PollingEventsEmitter', function () {
     const newEventSpy = sinon.spy()
     const reorgSpy = sinon.spy()
     const reorgOutOfRangeSpy = sinon.spy()
-    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
     eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
     eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
     eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
@@ -641,7 +643,7 @@ describe('PollingEventsEmitter', function () {
     const newBlockEmitter = new Emittery()
     const options = { events: ['testEvent'] }
     const spy = sinon.spy()
-    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+    const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
     eventsEmitter.on(NEW_EVENT_EVENT_NAME, spy) // Will start processPastEvents() which will be delayed
     await setImmediatePromise() // Have to give enough time for the subscription to newBlockEmitter was picked up
 
@@ -651,7 +653,7 @@ describe('PollingEventsEmitter', function () {
 
     // Unblock the processPastEvents call
     const fetchedPromise1 = blockTracker.once('fetchedBlockSet')
-    getPastEventsCallback1([eventMock({ blockNumber: 10, transactionHash: '4', logIndex: 1 })])
+    getPastEventsCallback1([eventMock({ blockNumber: 10, transactionHash: '4' })])
     await fetchedPromise1
     expect(fetchedBlockSetSpy).to.have.callCount(1)
     contract.received(1).getPastEvents(Arg.all())
@@ -659,7 +661,7 @@ describe('PollingEventsEmitter', function () {
 
     // Unblock the processEvents
     const fetchedPromise2 = blockTracker.once('fetchedBlockSet')
-    getPastEventsCallback2([eventMock({ blockNumber: 11, transactionHash: '4', logIndex: 1 })])
+    getPastEventsCallback2([eventMock({ blockNumber: 11, transactionHash: '4' })])
     await fetchedPromise2
     expect(fetchedBlockSetSpy).to.have.callCount(2)
     contract.received(2).getPastEvents(Arg.all())
@@ -705,7 +707,7 @@ describe('PollingEventsEmitter', function () {
       const contract = Substitute.for<Contract>()
       contract.address.returns!('0x123')
       contract.getPastEvents(Arg.all()).resolves(
-        [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
+        [eventMock({ blockNumber: 11, transactionHash: '1' })]
       )
 
       const blockTracker = new BlockTracker({})
@@ -720,7 +722,7 @@ describe('PollingEventsEmitter', function () {
       const newEventSpy = sinon.spy()
       const reorgSpy = sinon.spy()
       const reorgOutOfRangeSpy = sinon.spy()
-      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
       eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
       eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
       eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
@@ -746,7 +748,7 @@ describe('PollingEventsEmitter', function () {
       const contract = Substitute.for<Contract>()
       contract.address.returns!('0x123')
       contract.getPastEvents('allEvents', { fromBlock: 9, toBlock: 11 }).resolves( // 9 because we don't want to reprocess 8th already processed block
-        [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
+        [eventMock({ blockNumber: 11, transactionHash: '1' })]
       )
 
       const blockTracker = new BlockTracker({})
@@ -762,7 +764,7 @@ describe('PollingEventsEmitter', function () {
       const newEventSpy = sinon.spy()
       const reorgSpy = sinon.spy()
       const reorgOutOfRangeSpy = sinon.spy()
-      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
       eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
       eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
       eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
@@ -788,7 +790,7 @@ describe('PollingEventsEmitter', function () {
       const contract = Substitute.for<Contract>()
       contract.address.returns!('0x123')
       contract.getPastEvents(Arg.all()).resolves(
-        [eventMock({ blockNumber: 11, transactionHash: '1', logIndex: 1 })]
+        [eventMock({ blockNumber: 11, transactionHash: '1' })]
       )
 
       const blockTracker = new BlockTracker({})
@@ -804,7 +806,7 @@ describe('PollingEventsEmitter', function () {
       const newEventSpy = sinon.spy()
       const reorgSpy = sinon.spy()
       const reorgOutOfRangeSpy = sinon.spy()
-      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('test'), options)
+      const eventsEmitter = new PollingEventsEmitter(eth, contract, blockTracker, newBlockEmitter as NewBlockEmitter, loggingFactory('web3events:test'), options)
       eventsEmitter.on(NEW_EVENT_EVENT_NAME, newEventSpy)
       eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
       eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)

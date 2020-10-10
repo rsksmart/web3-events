@@ -1,7 +1,7 @@
 {
   "name": "web3-events",
   "version": "0.1.0",
-  "description": "Framework for robust handling of web3 events",
+  "description": "Library for robust handling of web3 events",
   "keywords": [
     "web3",
     "events"
@@ -43,7 +43,6 @@
     "emittery": "^0.7.0",
     "reflect-metadata": "^0.1.13",
     "sequelize": "^6.3.5",
-    "sequelize-typescript": "^2.0.0-beta.0",
     "web3-eth": "^1.3.0",
     "web3-eth-contract": "^1.3.0",
     "web3-utils": "^1.3.0"

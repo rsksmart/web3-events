@@ -23,10 +23,6 @@ export function loggingFactory (name: string): Logger {
     error (message: string | object, ...meta) {
       log(`ERROR: ${message}`)
     },
-    critical (message: string | object, ...meta) {
-      log(`CRITICAL: ${message}`)
-      throw new Error(message as string)
-    },
     extend (extendedName: string) {
       return loggingFactory(`${name}:${extendedName}`)
     }

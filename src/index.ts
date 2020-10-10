@@ -1,8 +1,17 @@
 import type { Eth } from 'web3-eth'
+import { Sequelize } from 'sequelize'
 
-import { EventsEmitter, EventsEmitterOptions, Logger, NewBlockEmitter, NewBlockEmitterOptions } from './definitions'
+import {
+  EVENTS_MODEL_TABLE_NAME,
+  EventsEmitter,
+  EventsEmitterOptions,
+  Logger,
+  NewBlockEmitter,
+  NewBlockEmitterOptions
+} from './definitions'
 import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-emitter'
 import { PollingEventsEmitter } from './events'
+import Event, { EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { loggingFactory, scopeObject } from './utils'
 import { BlockTracker, BlockTrackerStore } from './block-tracker'
@@ -12,6 +21,7 @@ export * from './definitions'
 export * from './contract'
 export * from './new-block-emitter'
 export * from './block-tracker'
+export * from './event.model'
 export { PollingEventsEmitter } from './events'
 export { ModelConfirmator, ConfirmatorOptions } from './confirmator'
 
@@ -36,6 +46,7 @@ export class Web3Events {
   private readonly defaultNewBlockEmitter: NewBlockEmitter
   private readonly store: Record<string, any> | undefined
   private readonly contractsUsed: Set<string>
+  private static initialized = false
 
   /**
    * @param eth Web3 Eth instance defining connection to blockchain
@@ -44,6 +55,10 @@ export class Web3Events {
    * @param defaultNewBlockEmitter Optional custom configuration or instance of default NewBlockEmitter
    */
   constructor (eth: Eth, { store, logger, defaultNewBlockEmitter }: Web3EventsOptions = {}) {
+    if (!Web3Events.initialized) {
+      throw new Error('You have to run Web3Events.init() before creating instance!')
+    }
+
     this.logger = logger ?? loggingFactory('web3events')
     this.eth = eth
     this.store = store
@@ -51,6 +66,20 @@ export class Web3Events {
 
     // Default newBlockEmitter
     this.defaultNewBlockEmitter = this.resolveNewBlockEmitter(defaultNewBlockEmitter) ?? new PollingNewBlockEmitter(eth)
+  }
+
+  static async init (sequelize: Sequelize): Promise<void> {
+    this.initialized = true
+
+    if (!sequelize.isDefined(EVENTS_MODEL_TABLE_NAME)) {
+      Event.init(EventModelDefinition, {
+        sequelize,
+        freezeTableName: true,
+        tableName: EVENTS_MODEL_TABLE_NAME,
+        modelName: EVENTS_MODEL_TABLE_NAME
+      })
+      await Event.sync()
+    }
   }
 
   /**

@@ -4,14 +4,14 @@ import sinon from 'sinon'
 import chai from 'chai'
 import dirtyChai from 'dirty-chai'
 import chaiAsPromised from 'chai-as-promised'
-import { Sequelize } from 'sequelize-typescript'
+import { Sequelize } from 'sequelize'
 import sinonChai from 'sinon-chai'
 
 import Event from '../src/event.model'
 import { ModelConfirmator } from '../src/confirmator'
 import { eventMock, receiptMock, sequelizeFactory, sleep } from './utils'
 import { loggingFactory } from '../src/utils'
-import { BlockTracker } from '../src'
+import { BlockTracker, Web3Events } from '../src'
 import Emittery from 'emittery'
 
 chai.use(sinonChai)
@@ -31,6 +31,7 @@ describe('ModelConfirmator', function () {
 
   before((): void => {
     sequelize = sequelizeFactory()
+    Web3Events.init(sequelize)
   })
 
   beforeEach(async () => {
@@ -305,7 +306,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 7,
         transactionHash: '1',
         targetConfirmation: 3,
-        emitted: true
+        emitted: true,
+        content: '{}'
       },
       { // Deleted; confirmations = 13
         contractAddress: '0x123',
@@ -313,7 +315,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 15,
         transactionHash: '3',
         targetConfirmation: 3,
-        emitted: true
+        emitted: true,
+        content: '{}'
       },
       { // Not deleted; confirmations = 12
         contractAddress: '0x123',
@@ -321,7 +324,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 16,
         transactionHash: '3',
         targetConfirmation: 3,
-        emitted: true
+        emitted: true,
+        content: '{}'
       },
       { // Not deleted; confirmations = 13
         contractAddress: '0x123',
@@ -329,7 +333,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 15,
         transactionHash: '4',
         targetConfirmation: 4,
-        emitted: true
+        emitted: true,
+        content: '{}'
       }
     ]
     await Event.bulkCreate(events)
@@ -377,7 +382,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 7,
         transactionHash: '1',
         targetConfirmation: 3,
-        emitted: true
+        emitted: true,
+        content: '{}'
       },
       { // Already emitted, awaits deletion
         contractAddress: '0x123',
@@ -385,7 +391,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 7,
         transactionHash: '2',
         targetConfirmation: 3,
-        emitted: true
+        emitted: true,
+        content: '{}'
       },
       { // To be emitted, but not valid receipt (invalid status)
         contractAddress: '0x123',
@@ -393,7 +400,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 9,
         transactionHash: '3',
         targetConfirmation: 2,
-        emitted: false
+        emitted: false,
+        content: '{}'
       },
       { // To be emitted, but not valid receipt (invalid block number)
         contractAddress: '0x123',
@@ -401,7 +409,8 @@ describe('ModelConfirmator', function () {
         blockNumber: 9,
         transactionHash: '4',
         targetConfirmation: 2,
-        emitted: false
+        emitted: false,
+        content: '{}'
       },
       { // To be emitted, and valid receipt
         contractAddress: '0x123',
