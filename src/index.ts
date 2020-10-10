@@ -11,7 +11,7 @@ import {
 } from './definitions'
 import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-emitter'
 import { PollingEventsEmitter } from './events'
-import Event, { EventModelDefinition } from './event.model'
+import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { loggingFactory, scopeObject } from './utils'
 import { BlockTracker, BlockTrackerStore } from './block-tracker'

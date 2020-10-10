@@ -3,7 +3,7 @@ import { Sema } from 'async-sema'
 import type { BlockHeader, Eth } from 'web3-eth'
 
 import { Contract } from './contract'
-import Event from './event.model'
+import { Event } from './event.model'
 import {
   EventsEmitter, EventsEmitterEventsNames, EventsEmitterEmptyEvents,
   EventsEmitterOptions,

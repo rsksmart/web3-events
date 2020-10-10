@@ -3,7 +3,7 @@ import type { EventData } from 'web3-eth-contract'
 import type { BlockHeader, Eth } from 'web3-eth'
 import type Emittery from 'emittery'
 
-import Event from './event.model'
+import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
 import type { Confirmator, Logger } from './definitions'
 import type { BlockTracker } from './block-tracker'

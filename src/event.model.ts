@@ -1,6 +1,6 @@
 import { Model, DataTypes } from 'sequelize'
 
-export default class Event extends Model {
+export class Event extends Model {
   id!: number
   blockNumber!: number
   transactionHash!: string
