@@ -11,6 +11,15 @@ export function sleep<T> (ms: number, ...args: T[]): Promise<T> {
   return new Promise(resolve => setTimeout(() => resolve(...args), ms))
 }
 
+export async function wholeGenerator<T = any> (iter: AsyncIterableIterator<T>): Promise<T[]> {
+  const allItems = []
+  for await (const item of iter) {
+    allItems.push(item)
+  }
+
+  return allItems
+}
+
 function formatLogs (msg: string): string {
   const result = msg.match(/^Executing \(([\w\d-]+)\): (.*)/m)
 

@@ -1,11 +1,10 @@
 import { literal, Op } from 'sequelize'
 import type { EventData } from 'web3-eth-contract'
 import type { BlockHeader, Eth } from 'web3-eth'
-import type Emittery from 'emittery'
 
 import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
-import type { Confirmator, Logger } from './definitions'
+import type { Confirmator, EventsEmitter, Logger } from './definitions'
 import type { BlockTracker } from './block-tracker'
 import { INVALID_CONFIRMATION_EVENT_NAME, NEW_CONFIRMATION_EVENT_NAME, NEW_EVENT_EVENT_NAME } from './definitions'
 
@@ -25,7 +24,7 @@ function isConfirmedClosure (currentBlockNumber: number) {
  * Also gives support to detect what events were dropped.
  */
 export class ModelConfirmator implements Confirmator {
-  private readonly emitter: Emittery
+  private readonly emitter: EventsEmitter<any>
   private readonly eth: Eth
   private readonly contractAddress: string
   private readonly blockTracker: BlockTracker
@@ -37,7 +36,7 @@ export class ModelConfirmator implements Confirmator {
    */
   private readonly waitingBlockCount: number
 
-  constructor (emitter: Emittery, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { baseLogger, waitingBlockCount }: ConfirmatorOptions = {}) {
+  constructor (emitter: EventsEmitter<any>, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { baseLogger, waitingBlockCount }: ConfirmatorOptions = {}) {
     this.emitter = emitter
     this.eth = eth
     this.contractAddress = contractAddress
@@ -54,12 +53,19 @@ export class ModelConfirmator implements Confirmator {
    * @param currentBlock
    */
   public async runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void> {
+    this.logger.verbose('Running Confirmation routine')
+    console.log('This.contractAddress: ', this.contractAddress)
+
     const events = await Event.findAll({
       where: {
         contractAddress: this.contractAddress,
         emitted: false
       }
     })
+
+    if (!events) {
+      return
+    }
 
     const [valid, invalid] = await asyncSplit(events, this.eventHasValidReceipt.bind(this))
     const toBeEmitted = valid.filter(isConfirmedClosure(currentBlock.number))

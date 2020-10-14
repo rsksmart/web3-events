@@ -1,16 +1,10 @@
 import Emittery from 'emittery'
-
-const LAST_FETCHED_BLOCK_NUMBER_KEY = 'lastFetchedBlockNumber'
-const LAST_FETCHED_BLOCK_HASH_KEY = 'lastFetchedBlockHash'
-const LAST_PROCESSED_BLOCK_NUMBER_KEY = 'lastProcessedBlockNumber'
-const LAST_PROCESSED_BLOCK_HASH_KEY = 'lastProcessedBlockHash'
-
-export interface BlockTrackerStore {
-  [LAST_FETCHED_BLOCK_NUMBER_KEY]?: number
-  [LAST_FETCHED_BLOCK_HASH_KEY]?: string
-  [LAST_PROCESSED_BLOCK_NUMBER_KEY]?: number
-  [LAST_PROCESSED_BLOCK_HASH_KEY]?: string
-}
+import {
+  BlockTrackerStore,
+  LAST_FETCHED_BLOCK_HASH_KEY,
+  LAST_FETCHED_BLOCK_NUMBER_KEY, LAST_PROCESSED_BLOCK_HASH_KEY,
+  LAST_PROCESSED_BLOCK_NUMBER_KEY
+} from './definitions'
 
 /**
  * Simple class for persistence of last processed block in order to not crawl the whole blockchain upon every restart

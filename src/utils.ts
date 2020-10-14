@@ -3,25 +3,30 @@ import debug from 'debug'
 
 import type { Logger } from './definitions'
 import { keccak256 } from 'web3-utils'
+import { inspect } from 'util'
 
 export function loggingFactory (name: string): Logger {
   const log = debug(name)
 
   return {
     debug (message: string | object, ...meta) {
-      log(`DEBUG: ${message}`)
+      log(`DEBUG: ${message}` + (meta.length ? '\n' + meta.map(e => inspect(e)).join('\n') : ''))
     },
     verbose (message: string | object, ...meta) {
-      log(`VERBOSE: ${message}`)
+      log(`VERBOSE: ${message}` + (meta.length ? '\n' + meta.map(e => inspect(e)).join('\n') : ''))
     },
     info (message: string | object, ...meta) {
-      log(`INFO: ${message}`)
+      log(`INFO: ${message}` + (meta.length ? '\n' + meta.map(e => inspect(e)).join('\n') : ''))
     },
     warn (message: string | object, ...meta) {
-      log(`WARN: ${message}`)
+      log(`WARN: ${message}` + (meta.length ? '\n' + meta.map(e => inspect(e)).join('\n') : ''))
     },
     error (message: string | object, ...meta) {
-      log(`ERROR: ${message}`)
+      log(`ERROR: ${message}` + (meta.length ? '\n' + meta.map(e => inspect(e)).join('\n') : ''))
+
+      if ((message as Error).stack) {
+        log((message as Error).stack)
+      }
     },
     extend (extendedName: string) {
       return loggingFactory(`${name}:${extendedName}`)
@@ -105,6 +110,11 @@ export function errorHandler (fn: (...args: any[]) => Promise<any>, logger: Logg
   }
 }
 
+/**
+ * Function that wraps obj in Proxy that prefix all the object's keys access with given scope
+ * @param obj
+ * @param scope
+ */
 export function scopeObject (obj: Record<string, any>, scope: string): Record<string, any> {
   return new Proxy(obj, {
     get (target: Record<string, any>, name: PropertyKey): any {

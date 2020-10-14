@@ -3,9 +3,9 @@ import type { EventData } from 'web3-eth-contract'
 import type { BlockHeader } from 'web3-eth'
 
 import type { ModelConfirmator } from './confirmator'
+import { BlockTracker } from './block-tracker'
 
 export const NEW_EVENT_EVENT_NAME = 'newEvent'
-export const INIT_FINISHED_EVENT_NAME = 'initFinished'
 export const NEW_BLOCK_EVENT_NAME = 'newBlock'
 export const REORG_EVENT_NAME = 'reorg'
 export const REORG_OUT_OF_RANGE_EVENT_NAME = 'reorgOutOfRange'
@@ -15,39 +15,17 @@ export const INVALID_CONFIRMATION_EVENT_NAME = 'invalidConfirmation'
 
 export const EVENTS_MODEL_TABLE_NAME = 'web3events_event'
 
-export type NewBlockEmitterEvents = { [NEW_BLOCK_EVENT_NAME]: BlockHeader, 'error': object }
-export type NewBlockEmitter = Emittery.Typed<NewBlockEmitterEvents>
+export const LAST_FETCHED_BLOCK_NUMBER_KEY = 'lastFetchedBlockNumber'
+export const LAST_FETCHED_BLOCK_HASH_KEY = 'lastFetchedBlockHash'
+export const LAST_PROCESSED_BLOCK_NUMBER_KEY = 'lastProcessedBlockNumber'
+export const LAST_PROCESSED_BLOCK_HASH_KEY = 'lastProcessedBlockHash'
 
-export interface Confirmator {
-  checkDroppedTransactions (newEvents: EventData[]): Promise<void>
-  runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
+export interface BlockTrackerStore {
+  [LAST_FETCHED_BLOCK_NUMBER_KEY]?: number
+  [LAST_FETCHED_BLOCK_HASH_KEY]?: string
+  [LAST_PROCESSED_BLOCK_NUMBER_KEY]?: number
+  [LAST_PROCESSED_BLOCK_HASH_KEY]?: string
 }
-
-/**
- * Object emitted by EventsEmitter when batch fetching and processing events
- */
-export interface ProgressInfo {
-  /**
-   * Starts with 1 and go up to totalSteps (including)
-   */
-  stepsComplete: number
-  totalSteps: number
-  stepFromBlock: number
-  stepToBlock: number
-}
-
-export type EventsEmitterEventsNames<E> = {
-  [NEW_EVENT_EVENT_NAME]: E
-  [PROGRESS_EVENT_NAME]: ProgressInfo
-  [REORG_OUT_OF_RANGE_EVENT_NAME]: number
-  'error': object
-}
-export type EventsEmitterEmptyEvents = keyof {
-  [INIT_FINISHED_EVENT_NAME]: void
-  [REORG_OUT_OF_RANGE_EVENT_NAME]: void
-  [REORG_EVENT_NAME]: void
-}
-export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents>
 
 /**
  * Basic logger interface used around the application.
@@ -71,6 +49,9 @@ export interface Logger {
   extend?: (name: string) => Logger
 }
 
+export type NewBlockEmitterEvents = { [NEW_BLOCK_EVENT_NAME]: BlockHeader, 'error': object }
+export type NewBlockEmitter = Emittery.Typed<NewBlockEmitterEvents>
+
 export interface NewBlockEmitterOptions {
   /**
    * If to use polling strategy, if false then listening is used.
@@ -82,6 +63,61 @@ export interface NewBlockEmitterOptions {
    */
   pollingInterval?: number
 }
+
+export interface Confirmator {
+  checkDroppedTransactions (newEvents: EventData[]): Promise<void>
+  runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
+}
+
+export interface InvalidConfirmationsEvent {
+  transactionHash: string
+}
+
+export interface NewConfirmationEvent {
+  event: string
+  transactionHash: string
+  confirmations: number
+  targetConfirmation: number
+}
+
+/**
+ * Object emitted by EventsEmitter when batch fetching and processing events
+ */
+export interface ProgressInfo {
+  /**
+   * Starts with 1 and go up to totalSteps (including)
+   */
+  stepsComplete: number
+  totalSteps: number
+  stepFromBlock: number
+  stepToBlock: number
+}
+
+export type Batch<E> = ProgressInfo & { events: E[] }
+
+export type EventsEmitterEventsNames<E> = {
+  [NEW_EVENT_EVENT_NAME]: E
+  [PROGRESS_EVENT_NAME]: ProgressInfo
+  [REORG_OUT_OF_RANGE_EVENT_NAME]: number
+  [NEW_CONFIRMATION_EVENT_NAME]: NewConfirmationEvent
+  [INVALID_CONFIRMATION_EVENT_NAME]: InvalidConfirmationsEvent
+  'error': object
+}
+export type EventsEmitterEmptyEvents = keyof {
+  [REORG_OUT_OF_RANGE_EVENT_NAME]: void
+  [REORG_EVENT_NAME]: void
+}
+export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> & {
+  fetch(): AsyncIterableIterator<Batch<E>>
+  start(): void
+  stop(): void
+}
+
+export type EventsEmitterCreationOptions = {
+  blockTracker?: BlockTracker
+  newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
+  logger?: Logger
+} & EventsEmitterOptions
 
 export interface EventsEmitterOptions {
   /**
@@ -118,12 +154,13 @@ export interface EventsEmitterOptions {
   /**
    * Specifies the starting block to process events (especially the past ones) on blockchain
    */
-  startingBlock?: number | string
+  startingBlock?: number
 
   /**
-   * Instance of Confirmator that handles confirmations
+   * Instance of Confirmator that handles confirmations.
+   * When null than no Confirmations routine is run.
    */
-  confirmator?: ModelConfirmator
+  confirmator?: ModelConfirmator | null
 
   /**
    * Defines if the listeners should be processed serially.

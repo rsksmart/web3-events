@@ -3,8 +3,8 @@ import { Sequelize } from 'sequelize'
 
 import {
   EVENTS_MODEL_TABLE_NAME,
-  EventsEmitter,
-  EventsEmitterOptions,
+  EventsEmitter, EventsEmitterCreationOptions,
+  BlockTrackerStore,
   Logger,
   NewBlockEmitter,
   NewBlockEmitterOptions
@@ -14,7 +14,8 @@ import { PollingEventsEmitter } from './events'
 import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { loggingFactory, scopeObject } from './utils'
-import { BlockTracker, BlockTrackerStore } from './block-tracker'
+import { BlockTracker } from './block-tracker'
+import { EventData } from 'web3-eth-contract'
 
 export { Contract } from './contract'
 export * from './definitions'
@@ -30,11 +31,6 @@ export interface Web3EventsOptions {
   defaultNewBlockEmitter?: NewBlockEmitterOptions | NewBlockEmitter
   store?: Record<string, any>
 }
-
-export type EventsEmitterCreationOptions = {
-  blockTracker?: BlockTracker
-  newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
-} & EventsEmitterOptions
 
 /**
  * Main entry point class to the library.
@@ -93,7 +89,7 @@ export class Web3Events {
    * @param options.blockTracker Custom instance of BlockTracker
    * @param options.newBlockEmitter Custom instance of NewBlockEmitter
    */
-  public createEventsEmitter<Events> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
+  public createEventsEmitter<Events extends EventData> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
     if (this.contractsUsed.has(contract.name)) {
       if (!options.blockTracker) {
         throw new Error('This contract is already listened on! New Emitter would use already utilized Store scope. Use your own BlockTracker if you want to continue!')
@@ -110,7 +106,7 @@ export class Web3Events {
     const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
     const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNBEmitter
 
-    return new PollingEventsEmitter(this.eth, contract, blockTracker, newBlockEmitter, this.logger, options)
+    return new PollingEventsEmitter<Events>(this.eth, contract, blockTracker, newBlockEmitter, options.logger ?? this.logger, options)
   }
 
   get defaultNewBlockEmitter (): NewBlockEmitter {

@@ -7,11 +7,11 @@ import chaiAsPromised from 'chai-as-promised'
 import { Sequelize } from 'sequelize'
 import sinonChai from 'sinon-chai'
 
-import Event from '../src/event.model'
+import { Event } from '../src/event.model'
 import { ModelConfirmator } from '../src/confirmator'
 import { eventMock, receiptMock, sequelizeFactory, sleep } from './utils'
 import { loggingFactory } from '../src/utils'
-import { BlockTracker, Web3Events } from '../src'
+import { BlockTracker, EventsEmitter, Web3Events } from '../src'
 import Emittery from 'emittery'
 
 chai.use(sinonChai)
@@ -44,7 +44,7 @@ describe('ModelConfirmator', function () {
     invalidEventSpy = sinon.spy()
     newEventSpy = sinon.spy()
     eth = Substitute.for<Eth>()
-    confirmator = new ModelConfirmator(emitter, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator') })
+    confirmator = new ModelConfirmator(emitter as unknown as EventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator') })
 
     emitter.on('newEvent', newEventSpy)
     emitter.on('newConfirmation', confirmedEventSpy)
