@@ -26,10 +26,10 @@ import type { EventInterface } from './event.model'
  */
 export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
   public readonly blockTracker: BlockTracker
+  public readonly contract: Contract
   protected readonly newBlockEmitter: NewBlockEmitter
   protected readonly startingBlock: number
   protected readonly eventNames?: string[]
-  protected readonly contract: Contract
   protected readonly eth: Eth
   protected readonly semaphore: Sema
   protected readonly confirmations: number
@@ -55,13 +55,17 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     this.serialListeners = options?.serialListeners
     this.serialProcessing = options?.serialProcessing
 
+    if (typeof this.startingBlock !== 'number') {
+      throw new TypeError('startingBlock has to be a number!')
+    }
+
     if (!this.topics && !this.eventNames) {
       throw new Error('You have to specify options.topics or options.events!')
     }
 
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
-    if (this.confirmations > 0 && options?.confirmator != null) {
+    if (this.confirmations > 0 && options?.confirmator !== null) {
       this.confirmator = options?.confirmator ?? new ModelConfirmator(this, eth, contract.address, this.blockTracker, { baseLogger })
     }
   }
@@ -321,7 +325,7 @@ export class PollingEventsEmitter<E extends EventLog> extends BaseEventsEmitter<
   private pollingUnsubscribe?: Function
 
   constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {
-    const logger = initLogger('events:polling', baseLogger)
+    const logger = initLogger('events', baseLogger)
     super(eth, contract, blockTracker, newBlockEmitter, logger, options)
   }
 

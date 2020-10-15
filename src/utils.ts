@@ -122,14 +122,14 @@ export function scopeObject (obj: Record<string, any>, scope: string): Record<st
         throw new Error('Symbols are not supported by scopeObject')
       }
 
-      return Reflect.get(target, `${scope}${name}`)
+      return Reflect.get(target, `${scope}.${name}`)
     },
     set (target: Record<string, any>, name: PropertyKey, value: any): boolean {
       if (typeof name === 'symbol') {
         throw new Error('Symbols are not supported by scopeObject')
       }
 
-      target[`${scope}${name}`] = value
+      target[`${scope}.${name}`] = value
       return true
     },
     deleteProperty (target: Record<string, any>, name: PropertyKey): boolean {
@@ -137,7 +137,7 @@ export function scopeObject (obj: Record<string, any>, scope: string): Record<st
         throw new Error('Symbols are not supported by scopeObject')
       }
 
-      delete target[`${scope}${name}`]
+      delete target[`${scope}.${name}`]
       return true
     }
   })

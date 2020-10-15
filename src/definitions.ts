@@ -4,6 +4,7 @@ import type { BlockHeader } from 'web3-eth'
 
 import type { ModelConfirmator } from './confirmator'
 import { BlockTracker } from './block-tracker'
+import { Contract } from './contract'
 
 export const NEW_EVENT_EVENT_NAME = 'newEvent'
 export const NEW_BLOCK_EVENT_NAME = 'newBlock'
@@ -108,6 +109,8 @@ export type EventsEmitterEmptyEvents = keyof {
   [REORG_EVENT_NAME]: void
 }
 export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> & {
+  readonly blockTracker: BlockTracker
+  readonly contract: Contract
   fetch(): AsyncIterableIterator<Batch<E>>
   start(): void
   stop(): void

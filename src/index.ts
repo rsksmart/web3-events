@@ -13,7 +13,7 @@ import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-em
 import { PollingEventsEmitter } from './events'
 import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
-import { loggingFactory, scopeObject } from './utils'
+import { initLogger, loggingFactory, scopeObject } from './utils'
 import { BlockTracker } from './block-tracker'
 import { EventLog } from 'web3-core'
 
@@ -54,6 +54,13 @@ export class Web3Events {
     if (!Web3Events.initialized) {
       throw new Error('You have to run Web3Events.init() before creating instance!')
     }
+
+    if (!eth.currentProvider) {
+      throw new Error('The passed Eth instance does not have a instantiated provider!')
+    }
+
+    // @ts-ignore
+    Contract.setProvider(eth.currentProvider)
 
     this.logger = logger ?? loggingFactory('web3events')
     this.eth = eth
@@ -108,7 +115,16 @@ export class Web3Events {
     const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
     const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNBEmitter
 
-    return new PollingEventsEmitter<Events>(this.eth, contract, blockTracker, newBlockEmitter, options.logger ?? this.logger, options)
+    return new PollingEventsEmitter<Events>(this.eth, contract, blockTracker, newBlockEmitter, options.logger ?? initLogger(contract.name, this.logger), options)
+  }
+
+  /**
+   * Function that stops the Event Emitter and removes its Contract from the internally tracked set of used contracts.
+   * @param eventsEmitter
+   */
+  public removeEventsEmitter (eventsEmitter: EventsEmitter<unknown>): void {
+    this.contractsUsed.delete(eventsEmitter.contract.name)
+    eventsEmitter.stop()
   }
 
   get defaultNewBlockEmitter (): NewBlockEmitter {
