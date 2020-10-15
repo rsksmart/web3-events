@@ -1,6 +1,6 @@
 {
   "name": "web3-events",
-  "version": "0.1.0",
+  "version": "0.1.0-dev.0",
   "description": "Library for robust handling of web3 events",
   "keywords": [
     "web3",
@@ -34,7 +34,7 @@
     "docs": "typedoc --mode modules --excludeNotExported --readme none --excludePrivate  --tsconfig ./node_modules/tasegir/src/config/tsconfig.json --exclude 'src/providers/*,test/**/*' --out docs src",
     "types-check": "tasegir types-check",
     "lint": "tasegir lint",
-    "release": "tasegir release",
+    "release": "tasegir release --no-docs --target=node --no-build",
     "test": "tasegir test --target node"
   },
   "dependencies": {
