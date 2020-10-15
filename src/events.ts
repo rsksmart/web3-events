@@ -1,6 +1,7 @@
-import { EventData, PastEventOptions } from 'web3-eth-contract'
+import { PastEventOptions } from 'web3-eth-contract'
 import { Sema } from 'async-sema'
 import type { BlockHeader, Eth } from 'web3-eth'
+import { EventLog } from 'web3-core'
 
 import { Contract } from './contract'
 import { Event } from './event.model'
@@ -23,7 +24,7 @@ import type { EventInterface } from './event.model'
  * It supports block's confirmation, where new events are stored to DB and only after configured number of new
  * blocks are emitted to consumers for further processing.
  */
-export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartStopEventEmitter<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
+export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
   public readonly blockTracker: BlockTracker
   protected readonly newBlockEmitter: NewBlockEmitter
   protected readonly startingBlock: number
@@ -67,9 +68,9 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
 
   /**
    * Method that will fetch Events from the last fetched block.
-   *
-   * If nothing was fetched yet, then
-   * */
+   * If nothing was fetched yet, then fetching starts from configured startingBlock or genesis block.
+   * @yields Batch object
+   */
   public async * fetch (): AsyncIterableIterator<Batch<E>> {
     await this.semaphore.acquire()
     try {
@@ -297,7 +298,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
     }
   }
 
-  private serializeEvent (data: EventData): EventInterface {
+  private serializeEvent (data: EventLog): EventInterface {
     this.logger.debug(`New ${data.event} event to be confirmed. Block ${data.blockNumber}, transaction ${data.transactionHash}`)
     return {
       blockNumber: data.blockNumber,
@@ -316,7 +317,7 @@ export abstract class BaseEventsEmitter<E extends EventData> extends AutoStartSt
  * Polling is triggered using the NewBlockEmitter and is therefore up to the user
  * to chose what new-block strategy will employ.
  */
-export class PollingEventsEmitter<E extends EventData> extends BaseEventsEmitter<E> {
+export class PollingEventsEmitter<E extends EventLog> extends BaseEventsEmitter<E> {
   private pollingUnsubscribe?: Function
 
   constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {

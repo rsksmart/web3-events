@@ -15,7 +15,7 @@ import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { loggingFactory, scopeObject } from './utils'
 import { BlockTracker } from './block-tracker'
-import { EventData } from 'web3-eth-contract'
+import { EventLog } from 'web3-core'
 
 export { Contract } from './contract'
 export * from './definitions'
@@ -74,6 +74,8 @@ export class Web3Events {
         tableName: EVENTS_MODEL_TABLE_NAME,
         modelName: EVENTS_MODEL_TABLE_NAME
       })
+
+      // TODO: Add migrations
       await Event.sync()
     }
   }
@@ -89,7 +91,7 @@ export class Web3Events {
    * @param options.blockTracker Custom instance of BlockTracker
    * @param options.newBlockEmitter Custom instance of NewBlockEmitter
    */
-  public createEventsEmitter<Events extends EventData> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
+  public createEventsEmitter<Events extends EventLog> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
     if (this.contractsUsed.has(contract.name)) {
       if (!options.blockTracker) {
         throw new Error('This contract is already listened on! New Emitter would use already utilized Store scope. Use your own BlockTracker if you want to continue!')

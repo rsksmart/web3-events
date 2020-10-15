@@ -1,5 +1,5 @@
 import { literal, Op } from 'sequelize'
-import type { EventData } from 'web3-eth-contract'
+import type { EventLog } from 'web3-core'
 import type { BlockHeader, Eth } from 'web3-eth'
 
 import { Event } from './event.model'
@@ -54,8 +54,6 @@ export class ModelConfirmator implements Confirmator {
    */
   public async runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void> {
     this.logger.verbose('Running Confirmation routine')
-    console.log('This.contractAddress: ', this.contractAddress)
-
     const events = await Event.findAll({
       where: {
         contractAddress: this.contractAddress,
@@ -129,13 +127,13 @@ export class ModelConfirmator implements Confirmator {
       return
     }
 
-    const event = JSON.parse(data.content) as EventData
+    const event = JSON.parse(data.content) as EventLog
     this.logger.debug('Confirming event', event)
     this.blockTracker.setLastProcessedBlockIfHigher(event.blockNumber, event.blockHash)
     this.emitter.emit(NEW_EVENT_EVENT_NAME, event).catch(e => this.emitter.emit('error', e))
   }
 
-  public async checkDroppedTransactions (newEvents: EventData[]): Promise<void> {
+  public async checkDroppedTransactions (newEvents: EventLog[]): Promise<void> {
     const currentEvents = await Event.findAll({
       where: {
         contractAddress: this.contractAddress

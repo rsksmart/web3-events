@@ -1,4 +1,4 @@
-import { AbiItem } from 'web3-utils'
+import type { AbiItem } from 'web3-utils'
 import Web3Contract from 'web3-eth-contract'
 
 export class Contract extends Web3Contract {
