@@ -1,5 +1,5 @@
-import { BlockHeader, Eth } from 'web3-eth'
-import { Subscription } from 'web3-core-subscriptions'
+import type { BlockHeader, Eth } from 'web3-eth'
+import type { Subscription } from 'web3-core-subscriptions'
 
 import { AutoStartStopEventEmitter, initLogger } from './utils'
 import { NEW_BLOCK_EVENT_NAME, NewBlockEmitter, NewBlockEmitterEvents } from './definitions'
