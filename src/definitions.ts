@@ -21,6 +21,11 @@ export const LAST_FETCHED_BLOCK_HASH_KEY = 'lastFetchedBlockHash'
 export const LAST_PROCESSED_BLOCK_NUMBER_KEY = 'lastProcessedBlockNumber'
 export const LAST_PROCESSED_BLOCK_HASH_KEY = 'lastProcessedBlockHash'
 
+export interface StartStop {
+  start(): void
+  stop(): void
+}
+
 export interface BlockTrackerStore {
   [LAST_FETCHED_BLOCK_NUMBER_KEY]?: number
   [LAST_FETCHED_BLOCK_HASH_KEY]?: string
@@ -28,30 +33,8 @@ export interface BlockTrackerStore {
   [LAST_PROCESSED_BLOCK_HASH_KEY]?: string
 }
 
-/**
- * Basic logger interface used around the application.
- */
-export interface Logger {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error (message: string | Error | object, ...meta: any[]): void
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  warn (message: string | object, ...meta: any[]): void
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  info (message: string | object, ...meta: any[]): void
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  verbose (message: string | object, ...meta: any[]): void
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug (message: string | object, ...meta: any[]): void
-
-  extend?: (name: string) => Logger
-}
-
 export type NewBlockEmitterEvents = { [NEW_BLOCK_EVENT_NAME]: BlockHeader, 'error': object }
-export type NewBlockEmitter = Emittery.Typed<NewBlockEmitterEvents>
+export type NewBlockEmitter = Emittery.Typed<NewBlockEmitterEvents> & StartStop
 
 export interface NewBlockEmitterOptions {
   /**
@@ -108,12 +91,10 @@ export type EventsEmitterEmptyEvents = keyof {
   [REORG_OUT_OF_RANGE_EVENT_NAME]: void
   [REORG_EVENT_NAME]: void
 }
-export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> & {
+export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> & StartStop & {
   readonly blockTracker: BlockTracker
   readonly contract: Contract
   fetch(): AsyncIterableIterator<Batch<E>>
-  start(): void
-  stop(): void
 }
 
 export type EventsEmitterCreationOptions = {
@@ -186,4 +167,26 @@ export interface EventsEmitterOptions {
    * By default this is true.
    */
   autoStart?: boolean
+}
+
+/**
+ * Basic logger interface used around the application.
+ */
+export interface Logger {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error (message: string | Error | object, ...meta: any[]): void
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  warn (message: string | object, ...meta: any[]): void
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  info (message: string | object, ...meta: any[]): void
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  verbose (message: string | object, ...meta: any[]): void
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  debug (message: string | object, ...meta: any[]): void
+
+  extend?: (name: string) => Logger
 }

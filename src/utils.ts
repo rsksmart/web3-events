@@ -1,7 +1,7 @@
 import Emittery from 'emittery'
 import debug from 'debug'
 
-import type { Logger } from './definitions'
+import type { Logger, StartStop } from './definitions'
 import { keccak256 } from 'web3-utils'
 import { inspect } from 'util'
 
@@ -147,7 +147,7 @@ export function scopeObject (obj: Record<string, any>, scope: string): Record<st
  * Abstract EventEmitter that automatically start (what ever task defined in abstract start() method) when first listener is
  * attached and similarly stops (what ever task defined in abstract stop() method) when last listener is removed.
  */
-export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = never> extends Emittery.Typed<T, E> {
+export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = never> extends Emittery.Typed<T, E> implements StartStop {
   /**
    * Name of event that triggers the start/stop actions. Eq. waits there is listeners for this specific event.
    */
