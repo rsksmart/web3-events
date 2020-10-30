@@ -1,3 +1,13 @@
+<a name="0.1.0-dev.1"></a>
+# [0.1.0-dev.1](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.0...v0.1.0-dev.1) (2020-10-30)
+
+
+### Features
+
+* new-block-emitter type includes start/stop ([6ec0fd6](https://github.com/rsksmart/web3-events/commit/6ec0fd6))
+
+
+
 <a name="0.1.0-dev.0"></a>
 # 0.1.0-dev.0 (2020-10-15)
 
