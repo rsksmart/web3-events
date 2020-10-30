@@ -1,3 +1,8 @@
+<a name="0.1.0-dev.2"></a>
+# [0.1.0-dev.2](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.1...v0.1.0-dev.2) (2020-10-30)
+
+
+
 <a name="0.1.0-dev.1"></a>
 # [0.1.0-dev.1](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.0...v0.1.0-dev.1) (2020-10-30)
 
