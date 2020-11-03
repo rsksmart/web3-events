@@ -6,18 +6,20 @@ import dirtyChai from 'dirty-chai'
 import chaiAsPromised from 'chai-as-promised'
 import { Sequelize } from 'sequelize'
 import sinonChai from 'sinon-chai'
+import Emittery from 'emittery'
+import { promisify } from 'util'
 
 import { Event } from '../src/event.model'
 import { ModelConfirmator } from '../src/confirmator'
 import { eventMock, receiptMock, sequelizeFactory, sleep } from './utils'
 import { loggingFactory } from '../src/utils'
 import { BlockTracker, EventsEmitter, Web3Events } from '../src'
-import Emittery from 'emittery'
 
 chai.use(sinonChai)
 chai.use(chaiAsPromised)
 chai.use(dirtyChai)
 const expect = chai.expect
+const setImmediatePromise = promisify(setImmediate)
 
 describe('ModelConfirmator', function () {
   let confirmator: ModelConfirmator
@@ -44,7 +46,7 @@ describe('ModelConfirmator', function () {
     invalidEventSpy = sinon.spy()
     newEventSpy = sinon.spy()
     eth = Substitute.for<Eth>()
-    confirmator = new ModelConfirmator(emitter as unknown as EventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator') })
+    confirmator = new ModelConfirmator(emitter as unknown as EventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator'), waitingBlockCount: 10 })
 
     emitter.on('newEvent', newEventSpy)
     emitter.on('newConfirmation', confirmedEventSpy)
@@ -297,7 +299,7 @@ describe('ModelConfirmator', function () {
   })
 
   it('should remove already confirmed events that exceed configured block count', async () => {
-    // waitBlockCountBeforeConfirmationRemoved = 10
+    // waitingBlockCount = 10
 
     const events = [
       { // Deleted; confirmations = 21
@@ -514,8 +516,9 @@ describe('ModelConfirmator', function () {
       eventMock({ transactionHash: '5' })
     ])
 
-    expect(invalidEventSpy).to.have.callCount(2)
+    await setImmediatePromise()
 
+    expect(invalidEventSpy).to.have.callCount(2)
     expect(invalidEventSpy).to.have.been.calledWithExactly({ transactionHash: '2' })
     expect(invalidEventSpy).to.have.been.calledWithExactly({ transactionHash: '3' })
   })

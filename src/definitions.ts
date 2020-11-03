@@ -3,8 +3,8 @@ import type { EventLog } from 'web3-core'
 import type { BlockHeader } from 'web3-eth'
 
 import type { ModelConfirmator } from './confirmator'
-import { BlockTracker } from './block-tracker'
-import { Contract } from './contract'
+import type { BlockTracker } from './block-tracker'
+import type { Contract } from './contract'
 
 export const NEW_EVENT_EVENT_NAME = 'newEvent'
 export const NEW_BLOCK_EVENT_NAME = 'newBlock'
@@ -51,6 +51,17 @@ export interface NewBlockEmitterOptions {
 export interface Confirmator {
   checkDroppedTransactions (newEvents: EventLog[]): Promise<void>
   runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
+}
+
+export interface ConfirmatorOptions {
+  baseLogger?: Logger
+
+  /**
+   * Number of blocks that is waited AFTER the event is confirmed before it is removed from database.
+   * Such parameter is needed for a REST API where a host could miss that an event has
+   * full confirmations as it could be removed from the DB before the endpoint is queried.
+   */
+  waitingBlockCount?: number
 }
 
 export interface InvalidConfirmationsEvent {
@@ -141,10 +152,10 @@ export interface EventsEmitterOptions {
   startingBlock?: number
 
   /**
-   * Instance of Confirmator that handles confirmations.
+   * Instance of Confirmator that handles confirmations or its options.
    * When null than no Confirmations routine is run.
    */
-  confirmator?: ModelConfirmator | null
+  confirmator?: ModelConfirmator | ConfirmatorOptions | null
 
   /**
    * Defines if the listeners should be processed serially.

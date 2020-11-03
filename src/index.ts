@@ -24,7 +24,7 @@ export * from './new-block-emitter'
 export * from './block-tracker'
 export * from './event.model'
 export { PollingEventsEmitter } from './events'
-export { ModelConfirmator, ConfirmatorOptions } from './confirmator'
+export { ModelConfirmator } from './confirmator'
 
 export interface Web3EventsOptions {
   logger?: Logger
