@@ -66,7 +66,11 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
     if (this.confirmations > 0 && options?.confirmator !== null) {
-      this.confirmator = options?.confirmator ?? new ModelConfirmator(this, eth, contract.address, this.blockTracker, { baseLogger })
+      if (options?.confirmator instanceof ModelConfirmator) {
+        this.confirmator = options?.confirmator
+      } else {
+        this.confirmator = new ModelConfirmator(this, eth, contract.address, this.blockTracker, { baseLogger, ...options?.confirmator })
+      }
     }
   }
 

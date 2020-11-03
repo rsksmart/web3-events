@@ -4,14 +4,9 @@ import type { BlockHeader, Eth } from 'web3-eth'
 
 import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
-import type { Confirmator, EventsEmitter, Logger } from './definitions'
+import type { Confirmator, ConfirmatorOptions, EventsEmitter, Logger } from './definitions'
 import type { BlockTracker } from './block-tracker'
 import { INVALID_CONFIRMATION_EVENT_NAME, NEW_CONFIRMATION_EVENT_NAME, NEW_EVENT_EVENT_NAME } from './definitions'
-
-export interface ConfirmatorOptions {
-  baseLogger?: Logger
-  waitingBlockCount?: number
-}
 
 const DEFAULT_WAITING_BLOCK_COUNT = 10
 
@@ -133,6 +128,14 @@ export class ModelConfirmator implements Confirmator {
     this.emitter.emit(NEW_EVENT_EVENT_NAME, event).catch(e => this.emitter.emit('error', e))
   }
 
+  /**
+   * This should be called when handling of reorg inside of confirmation range.
+   * The re-fetched transactions from blockchain are passed here and they are compared with the current events that awaits confirmation.
+   * If some transaction is not present in the new transactions that it is pronounced as a dropped transaction and emitted as such.
+   *
+   * @param newEvents - Re-fetched events inside of the confirmation range from blockchain.
+   * @emits INVALID_CONFIRMATION_EVENT_NAME - with transactionHash of the dropped transaction.
+   */
   public async checkDroppedTransactions (newEvents: EventLog[]): Promise<void> {
     const currentEvents = await Event.findAll({
       where: {
