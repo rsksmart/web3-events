@@ -1,3 +1,13 @@
+<a name="0.1.0-dev.3"></a>
+# [0.1.0-dev.3](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.2...v0.1.0-dev.3) (2020-11-03)
+
+
+### Features
+
+* confirmator configuration though eventemitter options ([#4](https://github.com/rsksmart/web3-events/issues/4)) ([1b6f92c](https://github.com/rsksmart/web3-events/commit/1b6f92c))
+
+
+
 <a name="0.1.0-dev.2"></a>
 # [0.1.0-dev.2](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.1...v0.1.0-dev.2) (2020-10-30)
 
