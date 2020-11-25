@@ -58,6 +58,19 @@ export function hashTopics (topics?: (string[] | string)[]): (string[] | string)
 }
 
 /**
+ * Subscribe to all events on "from" emitter and re-emit them in "to" emitter.
+ *
+ * @param from
+ * @param to
+ * @param events
+ */
+export function passTroughEvents (from: Emittery, to: Emittery, events: string[]): void {
+  for (const event of events) {
+    from.on(event, eventData => to.emit(event, eventData))
+  }
+}
+
+/**
  * Function that will split array into two groups based on callback that returns Promise.
  *
  * @param arr

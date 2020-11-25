@@ -5,7 +5,8 @@ import dirtyChai from 'dirty-chai'
 import sinon from 'sinon'
 import util from 'util'
 
-import { AutoStartStopEventEmitter, loggingFactory } from '../src/utils'
+import { AutoStartStopEventEmitter, loggingFactory, passTroughEvents } from '../src/utils'
+import Emittery from 'emittery'
 
 chai.use(sinonChai)
 chai.use(chaiAsPromised)
@@ -90,6 +91,32 @@ describe('utils', () => {
       emitter.on(EVENT_NAME, listenerSpy)
       await setImmediatePromise()
       expect(startSpy).to.be.calledTwice()
+    })
+  })
+
+  describe('passThroughEvents', function () {
+    it('should pass events when emitted', async () => {
+      const emitterFrom = new Emittery()
+      const emitterTo = new Emittery()
+      const spyOne = sinon.spy()
+      const spyTwo = sinon.spy()
+
+      passTroughEvents(emitterFrom, emitterTo, ['one'])
+
+      emitterTo.on('one', spyOne)
+      emitterTo.on('two', spyOne)
+
+      expect(spyOne).not.to.be.called()
+      expect(spyTwo).not.to.be.called()
+      emitterFrom.emit('one')
+      await setImmediatePromise()
+
+      expect(spyOne).to.be.calledOnce()
+      expect(spyTwo).not.to.be.called()
+      emitterFrom.emit('two')
+      await setImmediatePromise()
+
+      expect(spyTwo).not.to.be.called()
     })
   })
 })

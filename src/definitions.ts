@@ -4,7 +4,6 @@ import type { BlockHeader } from 'web3-eth'
 
 import type { ModelConfirmator } from './confirmator'
 import type { BlockTracker } from './block-tracker'
-import type { Contract } from './contract'
 
 export const NEW_EVENT_EVENT_NAME = 'newEvent'
 export const NEW_BLOCK_EVENT_NAME = 'newBlock'
@@ -48,9 +47,9 @@ export interface NewBlockEmitterOptions {
   pollingInterval?: number
 }
 
-export interface Confirmator {
+export interface Confirmator<T> {
   checkDroppedTransactions (newEvents: EventLog[]): Promise<void>
-  runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void>
+  runConfirmationsRoutine (currentBlock: BlockHeader): Promise<T[]>
 }
 
 export interface ConfirmatorOptions {
@@ -80,7 +79,8 @@ export interface NewConfirmationEvent {
  */
 export interface ProgressInfo {
   /**
-   * Starts with 1 and go up to totalSteps (including)
+   * Starts with 1 and go up to totalSteps (including).
+   * If confirmations are enabled, then the first batch is with confirmed events.
    */
   stepsComplete: number
   totalSteps: number
@@ -90,31 +90,30 @@ export interface ProgressInfo {
 
 export type Batch<E> = ProgressInfo & { events: E[] }
 
-export type EventsEmitterEventsNames<E> = {
-  [NEW_EVENT_EVENT_NAME]: E
+export type ManualEventsEmitterEventsNames = {
   [PROGRESS_EVENT_NAME]: ProgressInfo
   [REORG_OUT_OF_RANGE_EVENT_NAME]: number
   [NEW_CONFIRMATION_EVENT_NAME]: NewConfirmationEvent
   [INVALID_CONFIRMATION_EVENT_NAME]: InvalidConfirmationsEvent
   'error': object
 }
+
+export type AutoEventsEmitterEventsName<E> = ManualEventsEmitterEventsNames & {
+  [NEW_EVENT_EVENT_NAME]: E
+}
+
 export type EventsEmitterEmptyEvents = keyof {
   [REORG_OUT_OF_RANGE_EVENT_NAME]: void
   [REORG_EVENT_NAME]: void
-}
-export type EventsEmitter<E> = Emittery.Typed<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> & StartStop & {
-  readonly blockTracker: BlockTracker
-  readonly contract: Contract
-  fetch(): AsyncIterableIterator<Batch<E>>
 }
 
 export type EventsEmitterCreationOptions = {
   blockTracker?: BlockTracker
   newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
   logger?: Logger
-} & EventsEmitterOptions
+} & ManualEventsEmitterOptions
 
-export interface EventsEmitterOptions {
+export interface ManualEventsEmitterOptions {
   /**
    * Similar to "events" option, but it uses the event's signature to specify what events to listen to.
    * It is also highly recommended over the "events" option, because the filtering is done directly
@@ -155,7 +154,43 @@ export interface EventsEmitterOptions {
    * Instance of Confirmator that handles confirmations or its options.
    * When null than no Confirmations routine is run.
    */
-  confirmator?: ModelConfirmator | ConfirmatorOptions | null
+  confirmator?: ModelConfirmator<any> | ConfirmatorOptions | null
+}
+
+export interface AutoEventsEmitterOptions extends ManualEventsEmitterOptions{
+  /**
+   * Defines if the listeners should be processed serially.
+   *
+   * This effects if you have multiple listeners on the EventsEmitter, where it will be awaited
+   * for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
+   */
+  serialListeners?: boolean
+
+  /**
+   * Defines if the events should be kept in order and processed serially.
+   *
+   * This will await for the processing of a event to finish before moving to next event.
+   */
+  serialProcessing?: boolean
+
+  /**
+   * Defines if the EventsEmitter should automatically start listening on events when a events listener
+   * for events is attached.
+   * By default this is true.
+   */
+  autoStart?: boolean
+}
+
+export interface GroupEmitterOptions {
+  /**
+   * Base logger
+   */
+  baseLogger?: Logger
+
+  /**
+   * Name of the group used in logs and error messages
+   */
+  name?: string
 
   /**
    * Defines if the listeners should be processed serially.
