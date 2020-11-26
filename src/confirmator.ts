@@ -4,22 +4,23 @@ import type { BlockHeader, Eth } from 'web3-eth'
 
 import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
-import type { Confirmator, ConfirmatorOptions, EventsEmitter, Logger } from './definitions'
+import type { Confirmator, ConfirmatorOptions, Logger } from './definitions'
 import type { BlockTracker } from './block-tracker'
-import { INVALID_CONFIRMATION_EVENT_NAME, NEW_CONFIRMATION_EVENT_NAME, NEW_EVENT_EVENT_NAME } from './definitions'
+import { INVALID_CONFIRMATION_EVENT_NAME, NEW_CONFIRMATION_EVENT_NAME } from './definitions'
+import { ManualEventsEmitter } from './events'
 
 const DEFAULT_WAITING_BLOCK_COUNT = 10
 
 function isConfirmedClosure (currentBlockNumber: number) {
-  return (event: Event): boolean => event.getConfirmationsCount(currentBlockNumber) >= event.targetConfirmation
+  return (event: Event): boolean => !event.emitted && event.getConfirmationsCount(currentBlockNumber) >= event.targetConfirmation
 }
 
 /**
  * Class that handles confirmations of blocks.
  * Also gives support to detect what events were dropped.
  */
-export class ModelConfirmator implements Confirmator {
-  private readonly emitter: EventsEmitter<any>
+export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
+  private readonly emitter: ManualEventsEmitter<T>
   private readonly eth: Eth
   private readonly contractAddress: string
   private readonly blockTracker: BlockTracker
@@ -31,7 +32,7 @@ export class ModelConfirmator implements Confirmator {
    */
   private readonly waitingBlockCount: number
 
-  constructor (emitter: EventsEmitter<any>, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { baseLogger, waitingBlockCount }: ConfirmatorOptions = {}) {
+  constructor (emitter: ManualEventsEmitter<T>, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { baseLogger, waitingBlockCount }: ConfirmatorOptions = {}) {
     this.emitter = emitter
     this.eth = eth
     this.contractAddress = contractAddress
@@ -47,7 +48,15 @@ export class ModelConfirmator implements Confirmator {
    *
    * @param currentBlock
    */
-  public async runConfirmationsRoutine (currentBlock: BlockHeader): Promise<void> {
+  public async runConfirmationsRoutine (currentBlock: BlockHeader): Promise<T[]> {
+    if (typeof currentBlock.number !== 'number') {
+      throw new TypeError('CurrentBlock.number is not a number!')
+    }
+
+    if (typeof this.waitingBlockCount !== 'number') {
+      throw new TypeError('waitingBlockCount is not a number!')
+    }
+
     this.logger.verbose('Running Confirmation routine')
     const events = await Event.findAll({
       where: {
@@ -57,29 +66,15 @@ export class ModelConfirmator implements Confirmator {
     })
 
     if (!events) {
-      return
+      return []
     }
 
     const [valid, invalid] = await asyncSplit(events, this.eventHasValidReceipt.bind(this))
-    const toBeEmitted = valid.filter(isConfirmedClosure(currentBlock.number))
-
-    toBeEmitted.forEach(this.confirmEvent.bind(this))
-    this.logger.info(`Confirmed ${toBeEmitted.length} events.`)
-    await Event.update({ emitted: true }, { where: { id: toBeEmitted.map(e => e.id) } }) // Update DB that events were emitted
-
     valid.forEach(this.emitNewConfirmationsClosure(currentBlock.number))
 
     if (invalid.length !== 0) {
       invalid.forEach(e => this.emitter.emit(INVALID_CONFIRMATION_EVENT_NAME, { transactionHash: e.transactionHash }))
       await Event.destroy({ where: { id: invalid.map(e => e.id) } })
-    }
-
-    if (typeof currentBlock.number !== 'number') {
-      throw new TypeError('CurrentBlock.number is not a number!')
-    }
-
-    if (typeof this.waitingBlockCount !== 'number') {
-      throw new TypeError('waitingBlockCount is not a number!')
     }
 
     // Remove already too old confirmations
@@ -90,6 +85,11 @@ export class ModelConfirmator implements Confirmator {
         blockNumber: { [Op.lte]: literal(`${currentBlock.number - this.waitingBlockCount} - \`targetConfirmation\``) }
       }
     })
+
+    const toBeEmitted = valid.filter(isConfirmedClosure(currentBlock.number))
+    this.logger.info(`Confirmed ${toBeEmitted.length} events.`)
+    await Event.update({ emitted: true }, { where: { id: toBeEmitted.map(e => e.id) } }) // Update DB that events were emitted
+    return toBeEmitted.map(this.confirmEvent.bind(this))
   }
 
   private async eventHasValidReceipt (event: Event): Promise<boolean> {
@@ -116,16 +116,10 @@ export class ModelConfirmator implements Confirmator {
     }
   }
 
-  private confirmEvent (data: Event): void {
-    // If it was already emitted then ignore this
-    if (data.emitted) {
-      return
-    }
-
-    const event = JSON.parse(data.content) as EventLog
+  private confirmEvent (data: Event): T {
+    const event = JSON.parse(data.content) as T
     this.logger.debug('Confirming event', event)
-    this.blockTracker.setLastProcessedBlockIfHigher(event.blockNumber, event.blockHash)
-    this.emitter.emit(NEW_EVENT_EVENT_NAME, event).catch(e => this.emitter.emit('error', e))
+    return event
   }
 
   /**

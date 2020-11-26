@@ -3,14 +3,14 @@ import { Sequelize } from 'sequelize'
 
 import {
   EVENTS_MODEL_TABLE_NAME,
-  EventsEmitter, EventsEmitterCreationOptions,
+  EventsEmitterCreationOptions,
   BlockTrackerStore,
   Logger,
   NewBlockEmitter,
   NewBlockEmitterOptions
 } from './definitions'
 import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-emitter'
-import { PollingEventsEmitter } from './events'
+import { AutoEventsEmitter } from './events'
 import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { initLogger, loggingFactory, scopeObject } from './utils'
@@ -23,7 +23,7 @@ export * from './contract'
 export * from './new-block-emitter'
 export * from './block-tracker'
 export * from './event.model'
-export { PollingEventsEmitter } from './events'
+export { ManualEventsEmitter, AutoEventsEmitter } from './events'
 export { ModelConfirmator } from './confirmator'
 
 export interface Web3EventsOptions {
@@ -88,7 +88,7 @@ export class Web3Events {
   }
 
   /**
-   * Creates a new EventsEmitter for given Contract.
+   * Creates a new AutoEventsEmitter for given Contract.
    *
    * Generally there should be only one emitter per Contract. If you want to use multiple instances for Contract
    * then you have to provide custom instances of BlockTracker as the global store would have otherwise collisions.
@@ -98,7 +98,7 @@ export class Web3Events {
    * @param options.blockTracker Custom instance of BlockTracker
    * @param options.newBlockEmitter Custom instance of NewBlockEmitter
    */
-  public createEventsEmitter<Events extends EventLog> (contract: Contract, options: EventsEmitterCreationOptions): EventsEmitter<Events> {
+  public createEventsEmitter<Events extends EventLog> (contract: Contract, options: EventsEmitterCreationOptions): AutoEventsEmitter<Events> {
     if (this.contractsUsed.has(contract.name)) {
       if (!options.blockTracker) {
         throw new Error('This contract is already listened on! New Emitter would use already utilized Store scope. Use your own BlockTracker if you want to continue!')
@@ -115,14 +115,14 @@ export class Web3Events {
     const blockTracker = options.blockTracker ?? new BlockTracker(scopeObject(this.store!, contract.name) as BlockTrackerStore)
     const newBlockEmitter = this.resolveNewBlockEmitter(options.newBlockEmitter) ?? this.defaultNBEmitter
 
-    return new PollingEventsEmitter<Events>(this.eth, contract, blockTracker, newBlockEmitter, options.logger ?? initLogger(contract.name, this.logger), options)
+    return new AutoEventsEmitter<Events>(this.eth, contract, blockTracker, newBlockEmitter, options.logger ?? initLogger(contract.name, this.logger), options)
   }
 
   /**
    * Function that stops the Event Emitter and removes its Contract from the internally tracked set of used contracts.
    * @param eventsEmitter
    */
-  public removeEventsEmitter (eventsEmitter: EventsEmitter<unknown>): void {
+  public removeEventsEmitter (eventsEmitter: AutoEventsEmitter<any>): void {
     this.contractsUsed.delete(eventsEmitter.contract.name)
     eventsEmitter.stop()
   }

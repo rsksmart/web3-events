@@ -13,7 +13,7 @@ import { Event } from '../src/event.model'
 import { ModelConfirmator } from '../src/confirmator'
 import { eventMock, receiptMock, sequelizeFactory, sleep } from './utils'
 import { loggingFactory } from '../src/utils'
-import { BlockTracker, EventsEmitter, Web3Events } from '../src'
+import { BlockTracker, ManualEventsEmitter, Web3Events } from '../src'
 
 chai.use(sinonChai)
 chai.use(chaiAsPromised)
@@ -22,18 +22,17 @@ const expect = chai.expect
 const setImmediatePromise = promisify(setImmediate)
 
 describe('ModelConfirmator', function () {
-  let confirmator: ModelConfirmator
+  let confirmator: ModelConfirmator<any>
   let sequelize: Sequelize
   let eth: SubstituteOf<Eth>
   let confirmedEventSpy: sinon.SinonSpy
   let invalidEventSpy: sinon.SinonSpy
-  let newEventSpy: sinon.SinonSpy
   let blockTracker: BlockTracker
   let emitter: Emittery
 
-  before((): void => {
+  before(async (): Promise<void> => {
     sequelize = sequelizeFactory()
-    Web3Events.init(sequelize)
+    await Web3Events.init(sequelize)
   })
 
   beforeEach(async () => {
@@ -44,16 +43,14 @@ describe('ModelConfirmator', function () {
 
     confirmedEventSpy = sinon.spy()
     invalidEventSpy = sinon.spy()
-    newEventSpy = sinon.spy()
     eth = Substitute.for<Eth>()
-    confirmator = new ModelConfirmator(emitter as unknown as EventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator'), waitingBlockCount: 10 })
+    confirmator = new ModelConfirmator(emitter as unknown as ManualEventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator'), waitingBlockCount: 10 })
 
-    emitter.on('newEvent', newEventSpy)
     emitter.on('newConfirmation', confirmedEventSpy)
     emitter.on('invalidConfirmation', invalidEventSpy)
   })
 
-  it('should emit newConfirmation and newEvent event when new block is available', async () => {
+  it('should emit newConfirmation event when new block is available', async () => {
     const events = [
       { // Nothing emitted
         contractAddress: '0x123',
@@ -108,8 +105,21 @@ describe('ModelConfirmator', function () {
 
     const block = Substitute.for<BlockHeader>()
     block.number.returns!(11)
-    await confirmator.runConfirmationsRoutine(block)
+    const confirmedEvents = await confirmator.runConfirmationsRoutine(block)
     await sleep(10)
+
+    expect(confirmedEvents).to.eql([
+      {
+        event: 'niceEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      },
+      {
+        event: 'otherEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      }
+    ])
 
     expect(invalidEventSpy).to.not.have.been.called()
     expect(confirmedEventSpy).to.have.callCount(3)
@@ -132,20 +142,7 @@ describe('ModelConfirmator', function () {
       transactionHash: '3'
     })
 
-    expect(newEventSpy).to.have.callCount(2)
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'otherEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'niceEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
-
     expect(await Event.count()).to.eql(5)
-    expect(blockTracker.getLastProcessedBlock()).to.eql([9, '0x123'])
   })
 
   it('should emit newEvent event when the targeted confirmation block is skipped', async () => {
@@ -175,7 +172,7 @@ describe('ModelConfirmator', function () {
 
     const block = Substitute.for<BlockHeader>()
     block.number.returns!(13)
-    await confirmator.runConfirmationsRoutine(block)
+    const confirmedEvents = await confirmator.runConfirmationsRoutine(block)
     await sleep(10)
 
     expect(invalidEventSpy).to.not.have.been.called()
@@ -193,20 +190,20 @@ describe('ModelConfirmator', function () {
       transactionHash: '3'
     })
 
-    expect(newEventSpy).to.have.callCount(2)
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'otherEvent',
-      blockNumber: 8,
-      blockHash: '0x123'
-    })
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'niceEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
+    expect(confirmedEvents).to.eql([
+      {
+        event: 'niceEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      },
+      {
+        event: 'otherEvent',
+        blockNumber: 8,
+        blockHash: '0x123'
+      }
+    ])
 
     expect(await Event.count()).to.eql(2)
-    expect(blockTracker.getLastProcessedBlock()).to.eql([9, '0x123'])
   })
 
   it('should confirm only events for given address', async () => {
@@ -264,7 +261,7 @@ describe('ModelConfirmator', function () {
 
     const block = Substitute.for<BlockHeader>()
     block.number.returns!(11)
-    await confirmator.runConfirmationsRoutine(block)
+    const confirmedEvents = await confirmator.runConfirmationsRoutine(block)
     await sleep(10)
 
     expect(invalidEventSpy).to.not.have.been.called()
@@ -282,20 +279,15 @@ describe('ModelConfirmator', function () {
       transactionHash: '2'
     })
 
-    expect(newEventSpy).to.have.callCount(1)
-    expect(newEventSpy).to.not.have.been.calledWithExactly({
-      event: 'otherEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'niceEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
+    expect(confirmedEvents).to.eql([
+      {
+        event: 'niceEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      }
+    ])
 
     expect(await Event.count()).to.eql(5)
-    expect(blockTracker.getLastProcessedBlock()).to.eql([9, '0x123'])
   })
 
   it('should remove already confirmed events that exceed configured block count', async () => {
@@ -347,7 +339,6 @@ describe('ModelConfirmator', function () {
     await confirmator.runConfirmationsRoutine(block)
     await sleep(10)
 
-    expect(newEventSpy).to.not.have.been.called()
     expect(invalidEventSpy).to.not.have.been.called()
     expect(confirmedEventSpy).to.not.have.been.called()
 
@@ -432,7 +423,7 @@ describe('ModelConfirmator', function () {
 
     const block = Substitute.for<BlockHeader>()
     block.number.returns!(11)
-    await confirmator.runConfirmationsRoutine(block)
+    const confirmedEvents = await confirmator.runConfirmationsRoutine(block)
     await sleep(10)
 
     expect(confirmedEventSpy).to.have.callCount(1)
@@ -445,12 +436,13 @@ describe('ModelConfirmator', function () {
 
     expect(await Event.count()).to.eql(3)
 
-    expect(newEventSpy).to.have.callCount(1)
-    expect(newEventSpy).to.have.been.calledWithExactly({
-      event: 'completelyDifferentEvent',
-      blockNumber: 9,
-      blockHash: '0x123'
-    })
+    expect(confirmedEvents).to.eql([
+      {
+        event: 'completelyDifferentEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      }
+    ])
 
     expect(invalidEventSpy).to.have.callCount(2)
     expect(invalidEventSpy).to.have.been.calledWithExactly({

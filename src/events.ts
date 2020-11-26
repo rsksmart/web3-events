@@ -2,58 +2,58 @@ import { PastEventOptions } from 'web3-eth-contract'
 import { Sema } from 'async-sema'
 import type { BlockHeader, Eth } from 'web3-eth'
 import { EventLog } from 'web3-core'
+import Emittery from 'emittery'
 
 import { Contract } from './contract'
 import { Event } from './event.model'
 import {
-  EventsEmitter, EventsEmitterEventsNames, EventsEmitterEmptyEvents,
-  EventsEmitterOptions,
+  ManualEventsEmitterEventsNames, EventsEmitterEmptyEvents,
+  ManualEventsEmitterOptions,
   Logger,
   NewBlockEmitter,
   NEW_BLOCK_EVENT_NAME,
   NEW_EVENT_EVENT_NAME,
-  REORG_EVENT_NAME, REORG_OUT_OF_RANGE_EVENT_NAME, PROGRESS_EVENT_NAME, Batch
+  REORG_EVENT_NAME, REORG_OUT_OF_RANGE_EVENT_NAME, PROGRESS_EVENT_NAME, Batch, AutoEventsEmitterOptions,
+  INVALID_CONFIRMATION_EVENT_NAME, NEW_CONFIRMATION_EVENT_NAME, AutoEventsEmitterEventsName
 } from './definitions'
-import { AutoStartStopEventEmitter, errorHandler, hashTopics, initLogger, split } from './utils'
+import { AutoStartStopEventEmitter, errorHandler, hashTopics, initLogger, passTroughEvents, split } from './utils'
 import { ModelConfirmator } from './confirmator'
 import type { BlockTracker } from './block-tracker'
 import type { EventInterface } from './event.model'
 
+const DEFAULT_BATCH_SIZE = 120 // 120 blocks = RSK one hour of blocks
+
 /**
- * Base class for EventsEmitter.
+ * EventsEmitter implementation where you have to manually call fetch() function to get events.
+ * It still supports emitting of all events like AutoEventsEmitter excecept the 'newEvent' with events.
  * It supports block's confirmation, where new events are stored to DB and only after configured number of new
  * blocks are emitted to consumers for further processing.
  */
-export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<EventsEmitterEventsNames<E>, EventsEmitterEmptyEvents> implements EventsEmitter<E> {
+export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<ManualEventsEmitterEventsNames, EventsEmitterEmptyEvents> {
   public readonly blockTracker: BlockTracker
   public readonly contract: Contract
-  protected readonly newBlockEmitter: NewBlockEmitter
   protected readonly startingBlock: number
   protected readonly eventNames?: string[]
   protected readonly eth: Eth
   protected readonly semaphore: Sema
   protected readonly confirmations: number
   protected readonly topics?: (string[] | string)[]
-  private readonly serialListeners?: boolean
-  private readonly serialProcessing?: boolean
-  private readonly confirmator?: ModelConfirmator
+  protected readonly logger: Logger
+  private confirmator?: ModelConfirmator<E>
   private readonly batchSize: number
-  private confirmationRoutine?: (...args: any[]) => void
 
-  protected constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {
-    super(initLogger('', baseLogger), NEW_EVENT_EVENT_NAME, options?.autoStart)
+  constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, baseLogger: Logger, options?: ManualEventsEmitterOptions) {
+    super()
+    this.logger = initLogger('', baseLogger)
     this.eth = eth
     this.contract = contract
     this.eventNames = options?.events
     this.startingBlock = options?.startingBlock ?? 0
     this.confirmations = options?.confirmations ?? 0
     this.topics = hashTopics(options?.topics)
-    this.batchSize = options?.batchSize ?? 120 // 120 blocks = RSK one hour of blocks
+    this.batchSize = options?.batchSize ?? DEFAULT_BATCH_SIZE
     this.semaphore = new Sema(1) // Allow only one caller
     this.blockTracker = blockTracker
-    this.newBlockEmitter = newBlockEmitter
-    this.serialListeners = options?.serialListeners
-    this.serialProcessing = options?.serialProcessing
 
     if (typeof this.startingBlock !== 'number') {
       throw new TypeError('startingBlock has to be a number!')
@@ -62,8 +62,6 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     if (!this.topics && !this.eventNames) {
       throw new Error('You have to specify options.topics or options.events!')
     }
-
-    this.newBlockEmitter.on('error', (e) => this.emit('error', e))
 
     if (this.confirmations > 0 && options?.confirmator !== null) {
       if (options?.confirmator instanceof ModelConfirmator) {
@@ -77,56 +75,40 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
   /**
    * Method that will fetch Events from the last fetched block.
    * If nothing was fetched yet, then fetching starts from configured startingBlock or genesis block.
+   * If there is nothing to fetch (eq. from last call no new block was created on the chain) then empty array is returned.
+   *
+   * @param currentBlock - Is the latest block on a blockchain, serves as optimization if you have already the information available.
    * @yields Batch object
    */
-  public async * fetch (): AsyncIterableIterator<Batch<E>> {
+  public async * fetch (currentBlock?: BlockHeader): AsyncIterableIterator<Batch<E>> {
     await this.semaphore.acquire()
+    this.logger.verbose('Lock acquired for fetch()')
     try {
-      let from: number
+      const fromNumber = this.blockTracker.getLastFetchedBlock()[0] ?? this.startingBlock
+      const toBlock = currentBlock ?? await this.eth.getBlock('latest')
 
-      const currentBlock = await this.eth.getBlock('latest')
-      const lastFetchedBlockNumber = this.blockTracker.getLastFetchedBlock()[0]
+      // Nothing new, lets fast-forward
+      if (fromNumber === toBlock.number) {
+        this.logger.verbose('Nothing new to process')
+        return
+      }
 
-      if (lastFetchedBlockNumber) {
-        from = lastFetchedBlockNumber
-      } else {
-        from = this.startingBlock
+      // Check if reorg did not happen since the last poll
+      if (this.confirmations && await this.isReorg()) {
+        return this.handleReorg(toBlock)
       }
 
       // Pass through the data from batch
-      yield * this.batchFetchAndProcessEvents(from as number, currentBlock.number, currentBlock)
+      yield * this.batchFetchAndProcessEvents(
+        // +1 because fromBlock and toBlock are "or equal", eq. closed interval, so we need to avoid duplications
+        this.blockTracker.getLastFetchedBlock()[0] !== undefined ? fromNumber + 1 : fromNumber,
+        toBlock.number,
+        toBlock
+      )
     } finally {
       this.semaphore.release()
     }
   }
-
-  public start (): void {
-    this.startEvents()
-
-    if (this.confirmations > 0 && this.confirmator) {
-      this.logger.verbose('Attaching Confirmations to New Block event')
-      this.confirmationRoutine = errorHandler(this.confirmator.runConfirmationsRoutine.bind(this.confirmator), this.logger)
-      this.newBlockEmitter.on(NEW_BLOCK_EVENT_NAME, this.confirmationRoutine)
-    }
-  }
-
-  public stop (): void {
-    this.stopEvents()
-
-    if (this.confirmationRoutine) {
-      this.newBlockEmitter.off(NEW_BLOCK_EVENT_NAME, this.confirmationRoutine)
-    }
-  }
-
-  /**
-   * Start fetching new events. Depends on specified strategy
-   */
-  protected abstract startEvents (): void
-
-  /**
-   * Stop fetching new events. Depends on specified strategy.
-   */
-  protected abstract stopEvents (): void
 
   /**
    * Method for processing events. It splits the events based on if they need more confirmations.
@@ -161,6 +143,11 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     this.logger.info(`${eventsToBeConfirmed.length} events to be confirmed.`)
     await Event.bulkCreate(eventsToBeConfirmed.map(this.serializeEvent.bind(this))) // Lets store them to DB
 
+    if (eventsToBeEmitted.length > 0) {
+      const lastEvent = eventsToBeEmitted[eventsToBeEmitted.length - 1]
+      this.blockTracker.setLastProcessedBlockIfHigher(lastEvent.blockNumber, lastEvent.blockHash)
+    }
+
     return eventsToBeEmitted
   }
 
@@ -174,7 +161,7 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
    */
   protected async * batchFetchAndProcessEvents (fromBlock: number, toBlock: number, currentBlock: BlockHeader): AsyncIterableIterator<Batch<E>> {
     if (typeof fromBlock !== 'number' || typeof toBlock !== 'number') {
-      throw new TypeError('fromBlock and toBlock has to be numbers!')
+      throw new TypeError(`fromBlock and toBlock has to be numbers! Got from: ${fromBlock}; to: ${toBlock}`)
     }
 
     if (toBlock < fromBlock) {
@@ -188,24 +175,63 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     }
 
     const startTime = process.hrtime()
-    const countOfBatches = toBlock === fromBlock ? 1 : Math.ceil((toBlock - fromBlock) / (this.batchSize - 1))
+
     this.logger.info(`Fetching and processing events from block ${fromBlock} to ${toBlock}`)
-    this.logger.verbose(`Will process ${countOfBatches} batches`)
+    this.logger.debug(`Batch size is ${this.batchSize}`)
 
-    for (let batch = 0; batch < countOfBatches; batch++) {
+    let batchOffset = 0
+    let batch = 0
+    let startBatching = true
+    const countOfBatches = Math.ceil((toBlock - fromBlock + 1) / this.batchSize)
+
+    // If confirmations are enabled then first batch is with confirmed events
+    // only run if this is not the first time running.
+    if (this.confirmator && this.blockTracker.getLastFetchedBlock()[0]) {
+      const confirmedEvents = await this.confirmator.runConfirmationsRoutine(currentBlock)
+
+      if (confirmedEvents.length > 0) {
+        batchOffset += 1
+        const lastEvent = confirmedEvents[confirmedEvents.length - 1]
+        this.logger.verbose('Emitting Batch with Confirmed events')
+
+        yield {
+          stepsComplete: 1,
+          totalSteps: countOfBatches + batchOffset,
+          stepFromBlock: this.blockTracker.getLastProcessedBlock()[0]!,
+          stepToBlock: lastEvent.blockNumber,
+          events: confirmedEvents
+        }
+        this.blockTracker.setLastProcessedBlockIfHigher(lastEvent.blockNumber, lastEvent.blockHash)
+
+        this.emit(PROGRESS_EVENT_NAME, {
+          stepsComplete: batch + 1,
+          totalSteps: countOfBatches,
+          stepFromBlock: this.blockTracker.getLastProcessedBlock()[0]!,
+          stepToBlock: lastEvent.blockNumber
+        }).catch(e => this.emit('error', e))
+      }
+    }
+
+    this.logger.verbose(`Will process ${countOfBatches + batchOffset} batches`)
+
+    for (; batch < countOfBatches; batch++) {
       // The first batch starts at fromBlock sharp, but the others has to start +1 to avoid reprocessing of the bordering block
-      let batchFromBlock, batchToBlock
+      let batchFromBlock
 
-      if (batch === 0) {
+      if (startBatching) {
         batchFromBlock = fromBlock
-        batchToBlock = Math.min(batchFromBlock + this.batchSize - 1, toBlock)
+        startBatching = false
       } else {
         batchFromBlock = fromBlock + (batch * this.batchSize)
-        batchToBlock = Math.min(batchFromBlock + this.batchSize - 1, toBlock)
+      }
+
+      const batchToBlock = Math.min(batchFromBlock + this.batchSize - 1, toBlock)
+
+      if (countOfBatches > 1) {
+        this.logger.verbose(`Processing batch no. ${batch + 1}: from block ${batchFromBlock} to ${batchToBlock}`)
       }
 
       const batchToBlockHeader = await this.eth.getBlock(batchToBlock)
-      this.logger.verbose(`Processing batch no. ${batch + 1}: from block ${batchFromBlock} to ${batchToBlock}`)
       const events = (await this.contract.getPastEvents('allEvents', {
         fromBlock: batchFromBlock,
         toBlock: batchToBlock,
@@ -216,24 +242,27 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
       const confirmedEvents = await this.processEvents(events, currentBlock.number)
       this.blockTracker.setLastFetchedBlock(batchToBlockHeader.number, batchToBlockHeader.hash)
       yield {
-        stepsComplete: batch + 1,
-        totalSteps: countOfBatches,
+        stepsComplete: batch + batchOffset + 1,
+        totalSteps: countOfBatches + batchOffset,
         stepFromBlock: batchFromBlock,
         stepToBlock: batchToBlock,
         events: confirmedEvents
       }
+
+      this.emit(PROGRESS_EVENT_NAME, {
+        stepsComplete: batch + batchOffset + 1,
+        totalSteps: countOfBatches + batchOffset,
+        stepFromBlock: batchFromBlock,
+        stepToBlock: batchToBlock
+      }).catch(e => this.emit('error', e))
     }
 
     const [secondsLapsed] = process.hrtime(startTime)
     this.logger.info(`Finished fetching events in ${secondsLapsed}s`)
   }
 
-  protected async convertIteratorToEmitter (iter: AsyncIterableIterator<Batch<E>>): Promise<void> {
-    for await (const batch of iter) {
-      await this.emitEvents(batch.events)
-      delete batch.events
-      this.emit(PROGRESS_EVENT_NAME, batch).catch(e => this.emit('error', e))
-    }
+  public setConfirmator (confirmator: ModelConfirmator<E>): void {
+    this.confirmator = confirmator
   }
 
   protected async isReorg (): Promise<boolean> {
@@ -285,6 +314,54 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     this.blockTracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
   }
 
+  private serializeEvent (data: EventLog): EventInterface {
+    this.logger.debug(`New ${data.event} event to be confirmed. Block ${data.blockNumber}, transaction ${data.transactionHash}`)
+    return {
+      blockNumber: data.blockNumber,
+      transactionHash: data.transactionHash,
+      contractAddress: this.contract.address,
+      event: data.event,
+      targetConfirmation: this.confirmations,
+      content: JSON.stringify(data)
+    }
+  }
+}
+
+/**
+ * EventsEmitter implementation that listens on new blocks on blockchain and then automatically emits new events.
+ *
+ * Fetching is triggered using the NewBlockEmitter and is therefore up to the user
+ * to chose what new-block strategy will employ.
+ */
+export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> {
+  private readonly serialListeners?: boolean
+  private readonly serialProcessing?: boolean
+  private readonly newBlockEmitter: NewBlockEmitter
+  private readonly manualEmitter: ManualEventsEmitter<E>
+
+  private pollingUnsubscribe?: Function
+
+  constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: AutoEventsEmitterOptions) {
+    const logger = initLogger('events', baseLogger)
+    super(initLogger('', baseLogger), NEW_EVENT_EVENT_NAME, options?.autoStart)
+
+    this.manualEmitter = new ManualEventsEmitter(eth, contract, blockTracker, logger, options)
+    this.newBlockEmitter = newBlockEmitter
+    this.serialListeners = options?.serialListeners
+    this.serialProcessing = options?.serialProcessing
+
+    passTroughEvents(this.manualEmitter, this,
+      [
+        'error',
+        REORG_EVENT_NAME,
+        REORG_OUT_OF_RANGE_EVENT_NAME,
+        INVALID_CONFIRMATION_EVENT_NAME,
+        NEW_CONFIRMATION_EVENT_NAME
+      ]
+    )
+    this.newBlockEmitter.on('error', (e) => this.emit('error', e))
+  }
+
   private async emitEvents (events: E[]): Promise<void> {
     const emittingFnc = this.serialListeners ? this.emitSerial.bind(this) : this.emit.bind(this)
 
@@ -306,75 +383,47 @@ export abstract class BaseEventsEmitter<E extends EventLog> extends AutoStartSto
     }
   }
 
-  private serializeEvent (data: EventLog): EventInterface {
-    this.logger.debug(`New ${data.event} event to be confirmed. Block ${data.blockNumber}, transaction ${data.transactionHash}`)
-    return {
-      blockNumber: data.blockNumber,
-      transactionHash: data.transactionHash,
-      contractAddress: this.contract.address,
-      event: data.event,
-      targetConfirmation: this.confirmations,
-      content: JSON.stringify(data)
+  protected async convertIteratorToEmitter (iter: AsyncIterableIterator<Batch<E>>): Promise<void> {
+    for await (const batch of iter) {
+      await this.emitEvents(batch.events)
     }
-  }
-}
-
-/**
- * EventsEmitter implementation that uses polling for fetching new events from the blockchain.
- *
- * Polling is triggered using the NewBlockEmitter and is therefore up to the user
- * to chose what new-block strategy will employ.
- */
-export class PollingEventsEmitter<E extends EventLog> extends BaseEventsEmitter<E> {
-  private pollingUnsubscribe?: Function
-
-  constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: EventsEmitterOptions) {
-    const logger = initLogger('events', baseLogger)
-    super(eth, contract, blockTracker, newBlockEmitter, logger, options)
   }
 
   async poll (currentBlock: BlockHeader): Promise<void> {
     this.logger.verbose(`Received new block number ${currentBlock.number}`)
-    await this.semaphore.acquire()
-    this.logger.verbose(`Lock acquired for block ${currentBlock.number}`)
     try {
-      // Check if reorg did not happen since the last poll
-      if (this.confirmations && await this.isReorg()) {
-        return this.handleReorg(currentBlock)
-      }
-
-      const lastFetchedBlockNumber = this.blockTracker.getLastFetchedBlock()[0] ?? this.startingBlock
-
-      // Nothing new, lets fast-forward
-      if (lastFetchedBlockNumber === currentBlock.number) {
-        this.logger.verbose('Nothing new to process')
-        return
-      }
-
       await this.convertIteratorToEmitter(
-        this.batchFetchAndProcessEvents(
-          lastFetchedBlockNumber + 1, // +1 because fromBlock and toBlock are "or equal", eq. closed interval, so we need to avoid duplications
-          currentBlock.number,
-          currentBlock
-        )
+        this.manualEmitter.fetch(currentBlock)
       )
     } catch (e) {
       this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
       this.emit('error', e)
-    } finally {
-      this.semaphore.release()
     }
   }
 
-  startEvents (): void {
+  async * fetch (toBlock: BlockHeader | undefined): AsyncIterableIterator<Batch<E>> {
+    yield * await this.manualEmitter.fetch(toBlock)
+  }
+
+  start (): void {
     this.logger.verbose('Starting listening on new blocks for polling new events')
     this.pollingUnsubscribe =
       this.newBlockEmitter.on(NEW_BLOCK_EVENT_NAME, errorHandler(this.poll.bind(this), this.logger))
   }
 
-  stopEvents (): void {
+  stop (): void {
     this.logger.verbose('Finishing listening on new blocks for polling new events')
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    this.pollingUnsubscribe && this.pollingUnsubscribe()
+
+    if (this.pollingUnsubscribe) {
+      this.pollingUnsubscribe()
+    }
+  }
+
+  get blockTracker (): BlockTracker {
+    return this.manualEmitter.blockTracker
+  }
+
+  get contract (): Contract {
+    return this.manualEmitter.contract
   }
 }
