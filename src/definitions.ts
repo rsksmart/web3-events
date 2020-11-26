@@ -83,6 +83,10 @@ export interface ProgressInfo {
    * If confirmations are enabled, then the first batch is with confirmed events.
    */
   stepsComplete: number
+
+  /**
+   * Number of total batches that gonna be emitted
+   */
   totalSteps: number
   stepFromBlock: number
   stepToBlock: number
@@ -108,8 +112,19 @@ export type EventsEmitterEmptyEvents = keyof {
 }
 
 export type EventsEmitterCreationOptions = {
+  /**
+   * Instance of custom BlockTracker used for the Events Emitter
+   */
   blockTracker?: BlockTracker
+
+  /**
+   * NewBlockEmitter instance or its options that will be used to create it
+   */
   newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
+
+  /**
+   * Custom Logger instance.
+   */
   logger?: Logger
 } & ManualEventsEmitterOptions
 
@@ -122,7 +137,7 @@ export interface ManualEventsEmitterOptions {
    *
    * Each topic can also be a nested array of topics that behaves as “or” operation between the given nested topics.
    *
-   * The topics are sha3 hashed so no need to that yourself!
+   * The topics are sha3 hashed so no need to do that yourself!
    *
    * It has priority over the "events" option.
    *
@@ -163,6 +178,8 @@ export interface AutoEventsEmitterOptions extends ManualEventsEmitterOptions{
    *
    * This effects if you have multiple listeners on the EventsEmitter, where it will be awaited
    * for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
+   *
+   * By default this is false.
    */
   serialListeners?: boolean
 
@@ -170,12 +187,15 @@ export interface AutoEventsEmitterOptions extends ManualEventsEmitterOptions{
    * Defines if the events should be kept in order and processed serially.
    *
    * This will await for the processing of a event to finish before moving to next event.
+   *
+   * By default this is false.
    */
   serialProcessing?: boolean
 
   /**
-   * Defines if the EventsEmitter should automatically start listening on events when a events listener
+   * Defines if the EventsEmitter should automatically start listening on events when an events listener
    * for events is attached.
+   *
    * By default this is true.
    */
   autoStart?: boolean

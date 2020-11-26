@@ -77,7 +77,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
    * If nothing was fetched yet, then fetching starts from configured startingBlock or genesis block.
    * If there is nothing to fetch (eq. from last call no new block was created on the chain) then empty array is returned.
    *
-   * @param currentBlock - Is the latest block on blockchain, serves as optimalization if you have already the information available.
+   * @param currentBlock - Is the latest block on a blockchain, serves as optimization if you have already the information available.
    * @yields Batch object
    */
   public async * fetch (currentBlock?: BlockHeader): AsyncIterableIterator<Batch<E>> {
@@ -330,7 +330,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 /**
  * EventsEmitter implementation that listens on new blocks on blockchain and then automatically emits new events.
  *
- * Polling is triggered using the NewBlockEmitter and is therefore up to the user
+ * Fetching is triggered using the NewBlockEmitter and is therefore up to the user
  * to chose what new-block strategy will employ.
  */
 export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> {

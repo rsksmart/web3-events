@@ -45,7 +45,9 @@ There are several building blocks that cooperate to make the listening on events
  - `BlockTracker`: component that serves for persistant storage of data regarding what blocks were fetched or processed.
  - `NewBlockEmitters`: component that tracks wheter there is a new block on the blockchain. It serves as a trigger for most of the actions in the others components.
  - `Confirmator`: component that handles confirmations of blocks based on the configuration.
- - `EventsEmitter`: the main component that is linked to given Contract and listens on configured events/topics and emits them to the user.
+ - `EventsEmitter`: the main component that is linked to given Contract and listens on configured events/topics and emits them to the user. There are two implementations.
+    - `ManualEventsEmitter`: this implementation works only through `fetch()` method that you have to call yourself manually.
+    - `AutoEventsEmitter`: this implementation use `NewBlockEmitter` to automatically trigger `fetch()` upon new blocked detected and emits them as events.
 
 ### Confirmations
 
@@ -59,13 +61,13 @@ Do your own research about statistics of depth of reorgs (eq. how many blocks be
 
 ### Logger support
 
-This library has extensive logging support. By default these log are agregated by [`debug`](https://www.npmjs.com/package/debug) package which
+This library has extensive logging support. By default these log are aggregated by [`debug`](https://www.npmjs.com/package/debug) package which
 has basic logging capability mainly for development stage. If you want to view the logs set environmental variable `DEBUG='web3events*'.
 
 You can pass your own logger for better logging support it just have to adhere to the `Logger` interface having functions:
 `debug()`, `verbose()`, `info()`, `warn()` and `error()`. The signature of these functions is: `(message: string | object, ...meta: any[]) => void`.
 
-Optionally it can have function `extend(name: string) => Logger` that creates a new Logger with extended name. E.g. if you have for example
+Optionally it can have function `extend(name: string) => Logger` that creates a new Logger with an extended name. E.g. if you have for example
 logger `web3events` calling on it `extend('blockTracker')` would returned logger with name `web3events:blockTracker`.
 
 ## API
@@ -76,7 +78,7 @@ Higher level class that serves as glue for the rest of the components. It encaps
 
 ##### `constructor(eth, options)`
 
-Parameters:
+**Parameters:**
 
 - `eth` (`Eth`) - instance of web3.js's Eth, that defines the connection to the blockchain.
 - `options` (`Web3EventsOptions` | `undefined`) - several non-mandatory options.
@@ -87,21 +89,26 @@ when calling `createEventsEmitter()`.
 - `options.defaultNewBlockEmitter` (`NewBlockEmitterOptions` | `NewBlockEmitter` | `undefined`) - either `NewBlockEmitter` instance or
 options that should be used to construct default `NewBlockEmitter` that will be used when no instance is passed to the `createEventsEmitter()`.
 
-##### `static init<Events>(sequelize) => Promise<voide>`
+##### `static init<Events>(sequelize) => Promise<void>`
 
 Initialization function which adds our database models to Sequelize instance. Needs to be run prior creating `Web3Events` instance.
 
-Parameters:
+**Parameters:**
 
  - `sequelize` (`Sequelize`) - instance of Sequelize
 
-##### `createEventsEmitter<Events>(contract, options) => EventEmitter<Events>`
+##### `createEventsEmitter<Events>(contract: Contract, options: EventsEmitterCreationOptions) => AutoEventsEmitter<Events>`
 
-The main method that creates [`EventsEmitter`](#EventsEmitter_class) class. For more details see `EventsEmitter` documentation.
+The main method that creates [`AutoEventsEmitter`](#EventsEmitter_class) class with either provided or default `NewBlockEmitter`.
 
 Parameters:
 
  - `contract` (`Contract`) - instance of `Contract` that the events will be listened upon
+ - `options` (`EventsEmitterCreationOptions`) - options that can customize the creation of the `AutoEventsEmitter`
+    - `options.blockTracker` (`BlockTracker`) - Instance of custom BlockTracker used for the Events Emitter
+    - `options.newBlockEmitter` (`NewBlockEmitter | NewBlockEmitterOptions`) - NewBlockEmitter instance or its options that will be used to create it
+    - `options.logger` (`Logger`) - Custom Logger instance
+    -  for other options see `ManualEventsEmitterOptions`
 
 #### `Contract` class
 
@@ -109,14 +116,62 @@ A class that extends web3.js's `Contract` class with some metadata.
 
 ##### `contstructor(abi, address, name)`
 
-Parameters:
+**Parameters:**
 - `abi` (`AbiItem[]`) - ABI that defines the Contract
 - `address` (`string`) - an address of the deployed contract
-- `name` (`string`) - a name of the Contract
+- `name` (`string`) - a name of the Contract used mainly for internal usage and logging
 
-#### `EventsEmitter` class
+#### `ManualEventsEmitter<Events>` class
 
-The main component that performs fetching and processing of Contract's events.
+The main component that performs fetching and processing of Contract's events. **It fetch events from blockchain
+using web3.js's `getPastEvents()` call, so the blockchain node that you are connecting to have to support `eth_getLogs()` call! **
+
+This class serves mainly as the basic building blocks for other components, but if you need your own triggering logic that
+it is a standalone component that you can use as you wish.
+
+##### `constructor(eth: Eth, contract: Contract, blockTracker: BlockTracker, baseLogger: Logger, options?: ManualEventsEmitterOptions)`
+
+**Parameters:**
+ - `eth` (`Eth`) - Instance of Web3.js `Eth` class defining connection to blockchain.
+ - `contract` (`Contract`) - Instance of `Contract` class defining the contract of whose events will this emitter will listen on.
+ - `blockTracker` (`BlockTracker`) - Instance of `BlockTracker` that will store information about last fetched and processed blocks.
+ - `baseLogger` (`Logger`) - Instance of `Logger` that will be used to log information about fetching and confirming events.
+ - `options?` (`ManualEventsEmitterOptions | undefined` ) - Options specifying behavior of the Emitter:
+    - `options.topics?` (`string[] | string[][] | undefined`) - Non-hashed topics of the Event's signatures. Has priority over `options.events` and at least one has to be specified.
+    - `options.events?` (`string[] | undefined`) - Name of events that will be listend on. Less performant then `options.topics`. At least this or `topics` has to be set.
+    - `options.batchSize?` (`number | undefined`) - The number of blocks that will be used to determine the size of batch. Default is 120 blocks.
+    - `options.confirmations?` (`number | undefined`) - The number of confirmations that events will have to await before they will be passed on.
+    - `options.startingBlock?` (`number | undefined`) - The starting block number from which the fetching of events will start from. Most probably the block number of the deployed Contract.
+
+##### `* fetch(currentBlock?: BlockHeader) => AsyncIterableIterator<Batch<Events>>`
+
+Method that return async generator that emits batches of events.
+
+**Parameters:**
+   - `currentBlock` (`BlockHeader | undefined`) - Is the latest block on a blockchain, serves as optimization if you have already the information available.
+
+Batch interface:
+```typescript
+interface Batch<E> {
+  /**
+   * Starts with 1 and go up to totalSteps (including).
+   * If confirmations are enabled, then the first batch is with confirmed events.
+   */
+  stepsComplete: number
+
+  /**
+   * Number of total batches that gonna be emitted
+   */
+  totalSteps: number
+  stepFromBlock: number
+  stepToBlock: number
+
+  /**
+   * Actually emitted events.
+   */
+  events: E[]
+}
+```
 
 ##### Events
 
@@ -129,6 +184,31 @@ It emits a bunch of events that you might be interested in:
  - `newConfirmation` (only when `confirmations` are enabled; returns `NewConfirmationEvent` object) - information that there is new confirmation for given event.
  - `invalidConfirmation` (only when `confirmations` are enabled; returns `InvalidConfirmationsEvent` object) - information that during reorganisation that happened in the confirmation range a transaction was dropped.
  - `error` - general event that is emitted whenever something goes wrong
+
+#### `AutoEventsEmitter<Events>` class
+
+Extension of `ManualEventsEmitter` class that takes `NewBlockEmitter` instance and upon new block will automatically
+trigger `fetch()` and then emit the fetched events using `newEvent` event.
+
+##### `constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: AutoEventsEmitterOptions)`
+
+The constructor shares same parameters like `ManualEventsEmitter`, except it also requires `NewBlockEmitter` instance.
+
+Additional `options` are:
+ - `options.serialListeners?` (`boolean | undefined`; default: `false`) - Defines if the listeners should be processed serially. This effects if you have multiple listeners on the EventsEmitter, where it will be awaited for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
+ - `options.serialProcessing?` (`boolean | undefined`; default: `false`) - Defines if the events should be kept in order and processed serially. This will await for the processing of a event to finish before moving to next event.
+ - `options.autoStart?` (`boolean | undefined`; default: `true`) - Defines if the EventsEmitter should automatically start listening on events when an events listener for `newEvent` is attached.
+
+##### `* fetch(currentBlock?: BlockHeader) => AsyncIterableIterator<Batch<Events>>`
+
+This is same like for `ManualEventsEmitter`
+
+##### Events
+
+It emits all the events that `ManualEventsEmitter` emits and additionally:
+
+ - `newEvent` (with `EventData` object as payload) - the main event which pass to you a ready to be processed event from Contract.
+
 
 ## Contribute
 
