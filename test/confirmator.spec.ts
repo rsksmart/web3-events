@@ -44,7 +44,7 @@ describe('ModelConfirmator', function () {
     confirmedEventSpy = sinon.spy()
     invalidEventSpy = sinon.spy()
     eth = Substitute.for<Eth>()
-    confirmator = new ModelConfirmator(emitter as unknown as ManualEventsEmitter<any>, eth, '0x123', blockTracker, { baseLogger: loggingFactory('blockchain:confirmator'), waitingBlockCount: 10 })
+    confirmator = new ModelConfirmator(emitter as unknown as ManualEventsEmitter<any>, eth, '0x123', blockTracker, { logger: loggingFactory('blockchain:confirmator'), waitingBlockCount: 10 })
 
     emitter.on('newConfirmation', confirmedEventSpy)
     emitter.on('invalidConfirmation', invalidEventSpy)
@@ -145,7 +145,7 @@ describe('ModelConfirmator', function () {
     expect(await Event.count()).to.eql(5)
   })
 
-  it('should emit newEvent event when the targeted confirmation block is skipped', async () => {
+  it('should return events when the targeted confirmation block is skipped', async () => {
     const events = [
       { // Emitted newEvent
         contractAddress: '0x123',
@@ -288,6 +288,81 @@ describe('ModelConfirmator', function () {
     ])
 
     expect(await Event.count()).to.eql(5)
+  })
+
+  it('should confirm only events lower or equal to the passed toBlockNum', async () => {
+    const events = [
+      { // Nothing emitted; different address
+        contractAddress: '0x0',
+        event: 'testEvent',
+        blockNumber: 8,
+        transactionHash: '2',
+        targetConfirmation: 4,
+        emitted: false,
+        content: '{"event": "testEvent", "blockNumber": 8, "blockHash": "0x123"}'
+      },
+      { // Emitted newConfirmation
+        contractAddress: '0x123',
+        event: 'testEvent',
+        blockNumber: 8,
+        transactionHash: '2',
+        targetConfirmation: 4,
+        emitted: false,
+        content: '{"event": "testEvent", "blockNumber": 8, "blockHash": "0x123"}'
+      },
+      { // Returned as confirmed event
+        contractAddress: '0x123',
+        event: 'niceEvent',
+        blockNumber: 9,
+        transactionHash: '3',
+        targetConfirmation: 2,
+        emitted: false,
+        content: '{"event": "niceEvent", "blockNumber": 9, "blockHash": "0x123"}'
+      },
+      { // Not emitted as the bound is block 9
+        contractAddress: '0x123',
+        event: 'testEvent',
+        blockNumber: 10,
+        transactionHash: '3',
+        targetConfirmation: 2,
+        emitted: false,
+        content: '{"event": "otherEvent", "blockNumber": 9, "blockHash": "0x123"}'
+      }
+    ]
+    await Event.bulkCreate(events)
+    eth.getTransactionReceipt('2').resolves(receiptMock(8))
+    eth.getTransactionReceipt('3').resolves(receiptMock(9))
+    eth.getTransactionReceipt('4').resolves(receiptMock(9))
+
+    const block = Substitute.for<BlockHeader>()
+    block.number.returns!(11)
+    const confirmedEvents = await confirmator.runConfirmationsRoutine(block, 9)
+    await sleep(10)
+
+    expect(invalidEventSpy).to.not.have.been.called()
+    expect(confirmedEventSpy).to.have.callCount(2)
+    expect(confirmedEventSpy).to.have.been.calledWithExactly({
+      confirmations: 2,
+      event: 'niceEvent',
+      targetConfirmation: 2,
+      transactionHash: '3'
+    })
+    expect(confirmedEventSpy).to.have.been.calledWithExactly({
+      confirmations: 3,
+      event: 'testEvent',
+      targetConfirmation: 4,
+      transactionHash: '2'
+    })
+
+    expect(confirmedEvents).to.eql([
+      {
+        event: 'niceEvent',
+        blockNumber: 9,
+        blockHash: '0x123'
+      }
+    ])
+
+    expect(await Event.count()).to.eql(4)
   })
 
   it('should remove already confirmed events that exceed configured block count', async () => {

@@ -1,9 +1,25 @@
 import Emittery from 'emittery'
 import debug from 'debug'
-
-import type { Logger, StartStop } from './definitions'
 import { keccak256 } from 'web3-utils'
 import { inspect } from 'util'
+import type { BlockHeader } from 'web3-eth'
+import type { EventData } from 'web3-eth-contract'
+
+import type { EventsFetcher, FetchOptions, Logger, StartStop } from './definitions'
+import {
+  AutoEventsEmitterEventsName,
+  AutoEventsEmitterOptions,
+  Batch,
+  EventsEmitterEmptyEvents,
+  INVALID_CONFIRMATION_EVENT_NAME,
+  NEW_BLOCK_EVENT_NAME,
+  NEW_CONFIRMATION_EVENT_NAME,
+  NEW_EVENT_EVENT_NAME,
+  NewBlockEmitter, PROGRESS_EVENT_NAME,
+  REORG_EVENT_NAME,
+  REORG_OUT_OF_RANGE_EVENT_NAME
+} from './definitions'
+import { BlockTracker } from './block-tracker'
 
 export function loggingFactory (name: string): Logger {
   const log = debug(name)
@@ -63,10 +79,17 @@ export function hashTopics (topics?: (string[] | string)[]): (string[] | string)
  * @param from
  * @param to
  * @param events
+ * @param name If specified than the data coming from "from" emitter are wrapped in object: {name, data}
  */
-export function passTroughEvents (from: Emittery, to: Emittery, events: string[]): void {
+export function passTroughEvents (from: Emittery, to: Emittery, events: string[], name?: string): void {
   for (const event of events) {
-    from.on(event, eventData => to.emit(event, eventData))
+    from.on(event, eventData => {
+      if (name) {
+        to.emit(event, { name, data: eventData })
+      } else {
+        to.emit(event, eventData)
+      }
+    })
   }
 }
 
@@ -156,6 +179,33 @@ export function scopeObject (obj: Record<string, any>, scope: string): Record<st
   })
 }
 
+export async function cumulateIterations<E> (iterators: AsyncIterableIterator<E>[], bufferAllIteration = false): Promise<[boolean, E[]]> {
+  let iterating: boolean
+  const accumulator: E[] = []
+
+  do {
+    iterating = false
+
+    // This fetches one batch for each emitter
+    for (const iterator of iterators) {
+      const iteratorResult = await iterator.next()
+      iterating = iterating || !iteratorResult.done
+
+      if (iteratorResult.value) {
+        const batch = iteratorResult.value
+        accumulator.push(batch)
+      }
+    }
+
+    // We go through all batches only when asked
+    if (!bufferAllIteration) {
+      break
+    }
+  } while (iterating)
+
+  return [iterating, accumulator]
+}
+
 /**
  * Abstract EventEmitter that automatically start (what ever task defined in abstract start() method) when first listener is
  * attached and similarly stops (what ever task defined in abstract stop() method) when last listener is removed.
@@ -201,4 +251,108 @@ export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = n
   abstract start (): void
 
   abstract stop (): void
+}
+
+/**
+ * Utility class that wraps any EventsFetcher and automatically trigger fetching of events which are then emitted
+ * using `newEvent` event.
+ *
+ * Fetching is triggered using the NewBlockEmitter and is therefore up to the user
+ * to chose what new-block strategy will employ.
+ */
+export class AutoEventsEmitter<E extends EventData> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
+  private readonly serialListeners?: boolean
+  private readonly serialProcessing?: boolean
+  private readonly newBlockEmitter: NewBlockEmitter
+  private readonly eventsFetcher: EventsFetcher<E>
+
+  private pollingUnsubscribe?: Function
+
+  constructor (fetcher: EventsFetcher<E>, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: AutoEventsEmitterOptions) {
+    super(initLogger('', baseLogger), NEW_EVENT_EVENT_NAME, options?.autoStart)
+
+    this.eventsFetcher = fetcher
+    this.newBlockEmitter = newBlockEmitter
+    this.serialListeners = options?.serialListeners
+    this.serialProcessing = options?.serialProcessing
+
+    passTroughEvents(this.eventsFetcher, this,
+      [
+        'error',
+        REORG_EVENT_NAME,
+        REORG_OUT_OF_RANGE_EVENT_NAME,
+        INVALID_CONFIRMATION_EVENT_NAME,
+        NEW_CONFIRMATION_EVENT_NAME,
+        PROGRESS_EVENT_NAME
+      ]
+    )
+    this.newBlockEmitter.on('error', (e) => this.emit('error', e))
+  }
+
+  private async emitEvents (events: E[]): Promise<void> {
+    const emittingFnc = this.serialListeners ? this.emitSerial.bind(this) : this.emit.bind(this)
+
+    for (const data of events) {
+      this.logger.debug('Emitting event', data)
+
+      // Will await for all the listeners to process the event before moving forward
+      if (this.serialProcessing) {
+        try {
+          await emittingFnc(NEW_EVENT_EVENT_NAME, data)
+        } catch (e) {
+          this.emit('error', e)
+        }
+      } else { // Does not await and just move on
+        emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
+      }
+    }
+  }
+
+  protected async convertIteratorToEmitter (iter: AsyncIterableIterator<Batch<E>>): Promise<void> {
+    for await (const batch of iter) {
+      await this.emitEvents(batch.events)
+    }
+  }
+
+  async poll (currentBlock: BlockHeader): Promise<void> {
+    this.logger.verbose(`Received new block number ${currentBlock.number}`)
+    try {
+      await this.convertIteratorToEmitter(
+        this.fetch({ currentBlock })
+      )
+    } catch (e) {
+      this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
+      this.emit('error', e)
+    }
+  }
+
+  async * fetch (options?: FetchOptions): AsyncIterableIterator<Batch<E>> {
+    yield * await this.eventsFetcher.fetch(options)
+  }
+
+  start (): void {
+    this.logger.verbose('Starting listening on new blocks for polling new events')
+    this.pollingUnsubscribe =
+      this.newBlockEmitter.on(NEW_BLOCK_EVENT_NAME, errorHandler(this.poll.bind(this), this.logger))
+  }
+
+  stop (): void {
+    this.logger.verbose('Finishing listening on new blocks for polling new events')
+
+    if (this.pollingUnsubscribe) {
+      this.pollingUnsubscribe()
+    }
+  }
+
+  public get name (): string {
+    return this.eventsFetcher.name
+  }
+
+  public get batchSize (): number {
+    return this.eventsFetcher.batchSize
+  }
+
+  public get blockTracker (): BlockTracker {
+    return this.eventsFetcher.blockTracker
+  }
 }

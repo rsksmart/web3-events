@@ -14,6 +14,15 @@
 ## Table of Contents
 
 - [Usage](#usage)
+    - [Components overview](#components-overview)
+    - [Confirmations](#confirmations)
+    - [Logger support](#logger-support)
+- [API](#api)
+    - [`Web3Events` class](#web3events-class)
+    - [`Contract` class](#contract-class)
+    - [`ManualEventsEmitter<Events>` class](#manualeventsemitterevents-class)
+    - [`AutoEventsEmitter<Events>` class](#autoeventsemitterevents-class)
+    - [`GroupEventsEmitter<Events>` class](#groupeventsemitterevents-class)
 - [Contribute](#contribute)
 - [License](#license)
 
@@ -22,8 +31,9 @@
 ```ts
 import { Web3Events, Contract } from 'web3-events'
 import { Eth } from 'web3-eth'
+import Sequelize from 'sequelize'
 
-const sequelize = {} // Defined in your application
+const sequelize = new Sequelize(...) // Defined in your application
 const eth = new Eth('provider')
 
 await Web3Events.init(sequelize)
@@ -45,9 +55,10 @@ There are several building blocks that cooperate to make the listening on events
  - `BlockTracker`: component that serves for persistant storage of data regarding what blocks were fetched or processed.
  - `NewBlockEmitters`: component that tracks wheter there is a new block on the blockchain. It serves as a trigger for most of the actions in the others components.
  - `Confirmator`: component that handles confirmations of blocks based on the configuration.
- - `EventsEmitter`: the main component that is linked to given Contract and listens on configured events/topics and emits them to the user. There are two implementations.
+ - `EventsEmitter`: the main component that is linked to given Contract and listens on configured events/topics and emits them to the user. There are three implementations.
     - `ManualEventsEmitter`: this implementation works only through `fetch()` method that you have to call yourself manually.
     - `AutoEventsEmitter`: this implementation use `NewBlockEmitter` to automatically trigger `fetch()` upon new blocked detected and emits them as events.
+    - `GroupEventsEmitter`: this implementation groups already existing Emitters under one Emitter. Mainly used for logical groupping of Contracts or when you need cross-Contract order dependant Events processing.
 
 ### Confirmations
 
@@ -101,14 +112,36 @@ Initialization function which adds our database models to Sequelize instance. Ne
 
 The main method that creates [`AutoEventsEmitter`](#EventsEmitter_class) class with either provided or default `NewBlockEmitter`.
 
-Parameters:
+**Parameters:**
 
  - `contract` (`Contract`) - instance of `Contract` that the events will be listened upon
- - `options` (`EventsEmitterCreationOptions`) - options that can customize the creation of the `AutoEventsEmitter`
+ - `options` (`EventsEmitterCreationOptions | undefined`) - options that can customize the creation of the `AutoEventsEmitter`
     - `options.blockTracker` (`BlockTracker`) - Instance of custom BlockTracker used for the Events Emitter
     - `options.newBlockEmitter` (`NewBlockEmitter | NewBlockEmitterOptions`) - NewBlockEmitter instance or its options that will be used to create it
     - `options.logger` (`Logger`) - Custom Logger instance
+    - `options.serialListeners` (`boolean`) -  Defines if the listeners should be processed serially.
+    - `options.serialProcessing` (`boolean`) - Defines if the events should be kept in order and processed serially.
+    - `options.autoStart` (`boolean`; default is `true`) - Defines if the EventsEmitter should automatically start listening on events when an events listener for events is attached.
     -  for other options see `ManualEventsEmitterOptions`
+
+##### `groupEventsEmitters<Events>(eventsEmitters: AutoEventsEmitter<any>[], options: CreateGroupEmitterOptions) => AutoEventsEmitter<Events>`
+
+Method that takes several EventsEmitters and group them under one emitter.
+
+The EventsEmitters must not have any newEvents listeners! Nor they can be attached later on!
+
+Except of some logical grouping of Emitters, this is mainly meant for Contracts that have order depending evaluation.
+If that is the case use the flag `options.orderedProcessing` with most probably `options.serialProcessing` flag.
+
+**Parameters:**
+
+ - `eventsEmitters` (`EventsFetcher[]`) - array of Emitters that will be grouped.
+ - `options` (`CreateGroupEmitterOptions` | `undefined`) - for all options see `CreateGroupEmitterOptions`. Bellow is basic listing.
+    - `options.orderedProcessing` (`boolean`) - defines if the events from emitters ordered using blockNumber, transactionIndex and logIndex to determine order of the events.
+    - `options.newBlockEmitter` (`NewBlockEmitter | NewBlockEmitterOptions`) Custom instance of NewBlockEmitter
+    - `options.serialListeners` (`boolean`) -  Defines if the listeners should be processed serially.
+    - `options.serialProcessing` (`boolean`) - Defines if the events should be kept in order and processed serially.
+    - `options.autoStart` (`boolean`; default is `true`) - Defines if the EventsEmitter should automatically start listening on events when an events listener for events is attached.
 
 #### `Contract` class
 
@@ -123,11 +156,11 @@ A class that extends web3.js's `Contract` class with some metadata.
 
 #### `ManualEventsEmitter<Events>` class
 
-The main component that performs fetching and processing of Contract's events. **It fetch events from blockchain
+The main component that performs fetching and processing of Contract's events. **It fetches events from the blockchain
 using web3.js's `getPastEvents()` call, so the blockchain node that you are connecting to have to support `eth_getLogs()` call! **
 
-This class serves mainly as the basic building blocks for other components, but if you need your own triggering logic that
-it is a standalone component that you can use as you wish.
+This class serves mainly as the basic building blocks for other components, but if you need your own triggering logic then
+it is a standalone component you can use as you wish.
 
 ##### `constructor(eth: Eth, contract: Contract, blockTracker: BlockTracker, baseLogger: Logger, options?: ManualEventsEmitterOptions)`
 
@@ -143,12 +176,19 @@ it is a standalone component that you can use as you wish.
     - `options.confirmations?` (`number | undefined`) - The number of confirmations that events will have to await before they will be passed on.
     - `options.startingBlock?` (`number | undefined`) - The starting block number from which the fetching of events will start from. Most probably the block number of the deployed Contract.
 
-##### `* fetch(currentBlock?: BlockHeader) => AsyncIterableIterator<Batch<Events>>`
+##### `* fetch(options?: FetchOptions) => AsyncIterableIterator<Batch<Events>>`
 
 Method that return async generator that emits batches of events.
 
+It honors Confirmations. So if Confirmations are enabled and there are confirmed events awaiting to be returned, then the first
+batch will return those. Be aware that the in this batch all confirmed events are returned and the `batchSize` is not really honored here.
+
+Also, it detects and handles blockchain reorganizations if confirmations are enabled.
+
 **Parameters:**
-   - `currentBlock` (`BlockHeader | undefined`) - Is the latest block on a blockchain, serves as optimization if you have already the information available.
+   - `options` (`FetchOptions`) - Options for fetching the events.
+   - `options.currentBlock` (`BlockHeader | undefined`) - Is the latest block on a blockchain, serves as optimization if you have already the information available.
+   - `options.toBlockNumber` (`number | undefined`; default is latest block number) - Number of block to which the events will be fetched to INCLUDING.
 
 Batch interface:
 ```typescript
@@ -177,7 +217,6 @@ interface Batch<E> {
 
 It emits a bunch of events that you might be interested in:
 
- - `newEvent` (with `EventData` object as payload) - the main event which pass to you a ready to be processed event from Contract.
  - `progress` (with `Progress` object as payload) - as the events are processed in batches, you will get reporting on what batch is being processed and general progress.
  - `reorg` (only when `confirmations` are enabled) - informational event that notifies you that there was a blockchain reorganisation that was tackled by your confirmation range.
  - `reorgOutOfRange` (only when `confirmations` are enabled) - information event that notifies you that there was a blockchain reorganisation **outside of confirmation range** and hence your state can be invalid.
@@ -187,12 +226,10 @@ It emits a bunch of events that you might be interested in:
 
 #### `AutoEventsEmitter<Events>` class
 
-Extension of `ManualEventsEmitter` class that takes `NewBlockEmitter` instance and upon new block will automatically
-trigger `fetch()` and then emit the fetched events using `newEvent` event.
+Utility class that implements the `EventsFetcher` interface and takes `EventsFetcher` instance (`ManualEventsEmitter` or `GroupEventsEmitter` classes) and using the `NewBlockEmitter` automatically triggers
+`fetch` and then emit the fetched events using `newEvent`.
 
-##### `constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: AutoEventsEmitterOptions)`
-
-The constructor shares same parameters like `ManualEventsEmitter`, except it also requires `NewBlockEmitter` instance.
+##### `constructor (fetcher: EventsFetcher<E>, newBlockEmitter: NewBlockEmitter, baseLogger: Logger, options?: AutoEventsEmitterOptions)`
 
 Additional `options` are:
  - `options.serialListeners?` (`boolean | undefined`; default: `false`) - Defines if the listeners should be processed serially. This effects if you have multiple listeners on the EventsEmitter, where it will be awaited for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
@@ -209,6 +246,40 @@ It emits all the events that `ManualEventsEmitter` emits and additionally:
 
  - `newEvent` (with `EventData` object as payload) - the main event which pass to you a ready to be processed event from Contract.
 
+#### `GroupEventsEmitter<Events>` class
+
+EventsFetcher implementation that takes other Emitters and group then under one Emitter interface.
+The Emitters have to have same `batchSize` and must not have any `newEvent` listeners (in `AutoEventsEmitter` case).
+
+Also, supports ordering of events across the emitters based on the blockchain's blockNumber, transactionIndex and logIndex values.
+
+It re-emits events from the Emitters, but the data of the events are wrapped in object: `{ name: string, data: any}`
+Where `name` is the name of the Emitter the event is coming from and that `data` is data passed into the `emit` function.
+
+##### `constructor(eth: Eth, emitters: EventsFetcher<any>[], options?: GroupEmitterOptions)`
+
+**Parameters:**
+ - `eth` (`Eth`) - Instance of Web3.js `Eth` class defining connection to blockchain.
+ - `emitters` (`EventsFetcher<any>[]`) - Array of Emitters (eq. either `ManualEventsEmitter` or wrapped `AutoEventsEmitter`) that will be grouped.
+ - `options?` (`GroupEmitterOptions | undefined` ) - Options specifying behavior of the Emitter:
+    - `options.logger` (`Logger`) - Custom Logger instance
+    - `options.name` (`string`) - Name of the group used in logs and error messages
+    - `options.orderedProcessing` (`boolean`) - Defines if the events from emitters ordered using blockNumber, transactionIndex and logIndex to determine order of the events.
+
+##### `* fetch(options?: FetchOptions) => AsyncIterableIterator<Batch<Events>>`
+
+Method that return async generator that emits batches of events. Same as for `ManualEventsEmitter.fetch()`.
+
+##### Events
+
+Share the same events like `ManualEventsEmitter`, except that all the events are wrapped in object:
+
+```json5
+{
+  name: 'name of the emitter that emitted the event',
+  data: 'the emitted data'
+}
+```
 
 ## Contribute
 

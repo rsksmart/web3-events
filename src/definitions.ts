@@ -1,6 +1,6 @@
 import type Emittery from 'emittery'
-import type { EventLog } from 'web3-core'
 import type { BlockHeader } from 'web3-eth'
+import type { EventData } from 'web3-eth-contract'
 
 import type { ModelConfirmator } from './confirmator'
 import type { BlockTracker } from './block-tracker'
@@ -48,12 +48,12 @@ export interface NewBlockEmitterOptions {
 }
 
 export interface Confirmator<T> {
-  checkDroppedTransactions (newEvents: EventLog[]): Promise<void>
-  runConfirmationsRoutine (currentBlock: BlockHeader): Promise<T[]>
+  checkDroppedTransactions (newEvents: EventData[]): Promise<void>
+  runConfirmationsRoutine (currentBlock: BlockHeader, toBlockNum?: number): Promise<T[]>
 }
 
 export interface ConfirmatorOptions {
-  baseLogger?: Logger
+  logger?: Logger
 
   /**
    * Number of blocks that is waited AFTER the event is confirmed before it is removed from database.
@@ -107,7 +107,6 @@ export type AutoEventsEmitterEventsName<E> = ManualEventsEmitterEventsNames & {
 }
 
 export type EventsEmitterEmptyEvents = keyof {
-  [REORG_OUT_OF_RANGE_EVENT_NAME]: void
   [REORG_EVENT_NAME]: void
 }
 
@@ -126,7 +125,28 @@ export type EventsEmitterCreationOptions = {
    * Custom Logger instance.
    */
   logger?: Logger
-} & ManualEventsEmitterOptions
+} & ManualEventsEmitterOptions & AutoEventsEmitterOptions
+
+export interface FetchOptions{
+  /**
+   * Is the latest block on a blockchain, serves as optimization if you have already the information available.
+   */
+  currentBlock?: BlockHeader
+
+  /**
+   * Number of block to which the events will be fetched to INCLUDING.
+   *
+   * @default latest block number
+   */
+  toBlockNumber?: number
+}
+
+export interface EventsFetcher<E> extends Emittery {
+  fetch(options?: FetchOptions): AsyncIterableIterator<Batch<E>>
+  blockTracker: BlockTracker
+  batchSize: number
+  name: string
+}
 
 export interface ManualEventsEmitterOptions {
   /**
@@ -141,7 +161,7 @@ export interface ManualEventsEmitterOptions {
    *
    * It has priority over the "events" option.
    *
-   * @example ['NewEvent(uint,byte32)']
+   * @example ['NewEvent(uint256,byte32)']
    */
   topics?: string[] | string[][]
 
@@ -172,7 +192,7 @@ export interface ManualEventsEmitterOptions {
   confirmator?: ModelConfirmator<any> | ConfirmatorOptions | null
 }
 
-export interface AutoEventsEmitterOptions extends ManualEventsEmitterOptions{
+export interface AutoEventsEmitterOptions {
   /**
    * Defines if the listeners should be processed serially.
    *
@@ -205,7 +225,7 @@ export interface GroupEmitterOptions {
   /**
    * Base logger
    */
-  baseLogger?: Logger
+  logger?: Logger
 
   /**
    * Name of the group used in logs and error messages
@@ -213,26 +233,17 @@ export interface GroupEmitterOptions {
   name?: string
 
   /**
-   * Defines if the listeners should be processed serially.
-   *
-   * This effects if you have multiple listeners on the EventsEmitter, where it will be awaited
-   * for a listener to finish (eq. if it returns Promise, then to be resolved) before moving to next listeners.
+   * Defines if the events from emitters ordered using blockNumber, transactionIndex and logIndex to determine
+   * order of the events.
    */
-  serialListeners?: boolean
+  orderedProcessing?: boolean
+}
 
+export type CreateGroupEmitterOptions = GroupEmitterOptions & AutoEventsEmitterOptions & {
   /**
-   * Defines if the events should be kept in order and processed serially.
-   *
-   * This will await for the processing of a event to finish before moving to next event.
+   * NewBlockEmitter instance or its options that will be used to create it
    */
-  serialProcessing?: boolean
-
-  /**
-   * Defines if the EventsEmitter should automatically start listening on events when a events listener
-   * for events is attached.
-   * By default this is true.
-   */
-  autoStart?: boolean
+  newBlockEmitter?: NewBlockEmitter | NewBlockEmitterOptions
 }
 
 /**
@@ -255,4 +266,8 @@ export interface Logger {
   debug (message: string | object, ...meta: any[]): void
 
   extend?: (name: string) => Logger
+}
+
+export type WrapWithName<E> = {
+  [P in keyof E]?: {name: string, data: E[P]};
 }
