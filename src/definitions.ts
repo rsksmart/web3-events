@@ -271,3 +271,8 @@ export interface Logger {
 export type WrapWithName<E> = {
   [P in keyof E]?: {name: string, data: E[P]};
 }
+
+export interface NamespacedEvent<E> {
+  name: string
+  data: E
+}
