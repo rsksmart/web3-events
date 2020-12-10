@@ -1,6 +1,8 @@
-import { EventData, PastEventOptions } from 'web3-eth-contract'
+import { PastEventOptions } from 'web3-eth-contract'
 import { Sema } from 'async-sema'
 import type { BlockHeader, Eth } from 'web3-eth'
+import { EventLog } from 'web3-core'
+
 import Emittery from 'emittery'
 
 import { Contract } from './contract'
@@ -25,7 +27,7 @@ const DEFAULT_BATCH_SIZE = 120 // 120 blocks = RSK one hour of blocks
  * It supports block's confirmation, where new events are stored to DB and only after configured number of new
  * blocks are emitted to consumers for further processing.
  */
-export class ManualEventsEmitter<E extends EventData> extends Emittery.Typed<ManualEventsEmitterEventsNames, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
+export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<ManualEventsEmitterEventsNames, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
   protected readonly tracker: BlockTracker
   protected readonly contract: Contract
   protected readonly startingBlock: number
@@ -327,7 +329,7 @@ export class ManualEventsEmitter<E extends EventData> extends Emittery.Typed<Man
     this.tracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
   }
 
-  private serializeEvent (data: EventData): EventInterface {
+  private serializeEvent (data: EventLog): EventInterface {
     this.logger.debug(`New ${data.event} event to be confirmed. Block ${data.blockNumber}, transaction ${data.transactionHash}`)
     return {
       blockNumber: data.blockNumber,

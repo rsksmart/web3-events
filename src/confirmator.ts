@@ -1,6 +1,6 @@
 import { literal, Op, WhereOptions } from 'sequelize'
-import type { EventData } from 'web3-eth-contract'
 import type { BlockHeader, Eth } from 'web3-eth'
+import { EventLog } from 'web3-core'
 
 import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
@@ -19,7 +19,7 @@ function isConfirmedClosure (currentBlockNumber: number) {
  * Class that handles confirmations of blocks.
  * Also gives support to detect what events were dropped.
  */
-export class ModelConfirmator<T extends EventData> implements Confirmator<T> {
+export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
   private readonly emitter: ManualEventsEmitter<T>
   private readonly eth: Eth
   private readonly contractAddress: string
@@ -137,7 +137,7 @@ export class ModelConfirmator<T extends EventData> implements Confirmator<T> {
    * @param newEvents - Re-fetched events inside of the confirmation range from blockchain.
    * @emits INVALID_CONFIRMATION_EVENT_NAME - with transactionHash of the dropped transaction.
    */
-  public async checkDroppedTransactions (newEvents: EventData[]): Promise<void> {
+  public async checkDroppedTransactions (newEvents: EventLog[]): Promise<void> {
     const currentEvents = await Event.findAll({
       where: {
         contractAddress: this.contractAddress

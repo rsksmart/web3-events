@@ -4,7 +4,7 @@ import dirtyChai from 'dirty-chai'
 import chaiAsPromised from 'chai-as-promised'
 import sinonChai from 'sinon-chai'
 import type { Sequelize } from 'sequelize'
-import type { EventData } from 'web3-eth-contract'
+import type { EventLog } from 'web3-core'
 import type { Eth } from 'web3-eth'
 import type Sinon from 'sinon'
 import sinon from 'sinon'
@@ -62,7 +62,7 @@ describe('group', () => {
 
     it('should check that there are no listeners', () => {
       const eth = Substitute.for<Eth>()
-      const fetcher = Substitute.for<EventsFetcher<EventData>>()
+      const fetcher = Substitute.for<EventsFetcher<EventLog>>()
       fetcher.listenerCount(NEW_EVENT_EVENT_NAME).returns!(2)
       fetcher.name.returns!('lol')
 
@@ -153,7 +153,7 @@ describe('group', () => {
 
         // Events that will be used in the syncing process
         const batchFactorySync1 = batchFactoryConstructor(undefined, 5)
-        fetcher1.fetch({ currentBlock, toBlockNumber: 20 }).returns(createGenerator<Batch<EventData>>([
+        fetcher1.fetch({ currentBlock, toBlockNumber: 20 }).returns(createGenerator<Batch<EventLog>>([
           batchFactorySync1([
             eventMock({
               blockNumber: 2,
@@ -181,7 +181,7 @@ describe('group', () => {
         ]))
 
         // Data for the normal fetch()
-        fetcher1.fetch({ currentBlock }).returns(createGenerator<Batch<EventData>>([
+        fetcher1.fetch({ currentBlock }).returns(createGenerator<Batch<EventLog>>([
           batchMock([
             eventMock({
               blockNumber: 21,
@@ -200,11 +200,11 @@ describe('group', () => {
         fetcher2.fetch({
           currentBlock,
           toBlockNumber: 20
-        }).returns(createGenerator<Batch<EventData>>([batchMock<EventData>([])]))
+        }).returns(createGenerator<Batch<EventLog>>([batchMock<EventLog>([])]))
 
         // Data for the normal fetch()
-        fetcher2.fetch({ currentBlock }).returns(createGenerator<Batch<EventData>>([
-          batchMock<EventData>([
+        fetcher2.fetch({ currentBlock }).returns(createGenerator<Batch<EventLog>>([
+          batchMock<EventLog>([
             eventMock({
               blockNumber: 21,
               transactionIndex: 1,

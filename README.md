@@ -244,7 +244,7 @@ This is same like for `ManualEventsEmitter`
 
 It emits all the events that `ManualEventsEmitter` emits and additionally:
 
- - `newEvent` (with `EventData` object as payload) - the main event which pass to you a ready to be processed event from Contract.
+ - `newEvent` (with `EventLog` object as payload) - the main event which pass to you a ready to be processed event from Contract.
 
 #### `GroupEventsEmitter<Events>` class
 

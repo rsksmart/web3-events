@@ -1,6 +1,6 @@
 import type Emittery from 'emittery'
 import type { BlockHeader } from 'web3-eth'
-import type { EventData } from 'web3-eth-contract'
+import type { EventLog } from 'web3-core'
 
 import type { ModelConfirmator } from './confirmator'
 import type { BlockTracker } from './block-tracker'
@@ -48,7 +48,7 @@ export interface NewBlockEmitterOptions {
 }
 
 export interface Confirmator<T> {
-  checkDroppedTransactions (newEvents: EventData[]): Promise<void>
+  checkDroppedTransactions (newEvents: EventLog[]): Promise<void>
   runConfirmationsRoutine (currentBlock: BlockHeader, toBlockNum?: number): Promise<T[]>
 }
 

@@ -1,5 +1,6 @@
 import type { Eth } from 'web3-eth'
 import { Sequelize } from 'sequelize'
+import { EventLog } from 'web3-core'
 
 import {
   EVENTS_MODEL_TABLE_NAME,
@@ -15,7 +16,6 @@ import { Event, EventModelDefinition } from './event.model'
 import { Contract } from './contract'
 import { initLogger, loggingFactory, scopeObject, AutoEventsEmitter } from './utils'
 import { BlockTracker } from './block-tracker'
-import { EventData } from 'web3-eth-contract'
 import { GroupEventsEmitter } from './group'
 
 export { Contract } from './contract'
@@ -107,7 +107,7 @@ export class Web3Events {
    * @param options.serialProcessing Defines if the events should be kept in order and processed serially.
    * @param options.autoStart Default is true. Defines if the EventsEmitter should automatically start listening on events when an events listener for events is attached.
    */
-  public createEventsEmitter<Events extends EventData> (contract: Contract, options?: EventsEmitterCreationOptions): AutoEventsEmitter<Events> {
+  public createEventsEmitter<Events extends EventLog> (contract: Contract, options?: EventsEmitterCreationOptions): AutoEventsEmitter<Events> {
     if (this.contractsUsed.has(contract.name)) {
       if (!options?.blockTracker) {
         throw new Error('This contract is already listened on! New Emitter would use already utilized Store scope. Use your own BlockTracker if you want to continue!')
@@ -153,7 +153,7 @@ export class Web3Events {
    * @param options.serialProcessing Defines if the events should be kept in order and processed serially.
    * @param options.autoStart Default is true. Defines if the EventsEmitter should automatically start listening on events when an events listener for events is attached.
    */
-  public groupEventsEmitters<Events extends EventData> (eventsEmitters: AutoEventsEmitter<any>[], options?: CreateGroupEmitterOptions): AutoEventsEmitter<Events> {
+  public groupEventsEmitters<Events extends EventLog> (eventsEmitters: AutoEventsEmitter<any>[], options?: CreateGroupEmitterOptions): AutoEventsEmitter<Events> {
     const newBlockEmitter = this.resolveNewBlockEmitter(options?.newBlockEmitter) ?? this.defaultNBEmitter
     const groupEmitter = new GroupEventsEmitter<Events>(this.eth, eventsEmitters, options)
     return new AutoEventsEmitter<Events>(groupEmitter, newBlockEmitter, options?.logger ?? initLogger(groupEmitter.name, this.logger), options)

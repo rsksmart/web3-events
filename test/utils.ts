@@ -1,6 +1,6 @@
 import { BlockHeader, BlockTransactionString, TransactionReceipt } from 'web3-eth'
 import { Arg, Substitute, SubstituteOf } from '@fluffy-spoon/substitute'
-import { EventData } from 'web3-eth-contract'
+import { EventLog } from 'web3-eth-contract'
 import path from 'path'
 import { Options, Sequelize } from 'sequelize'
 import { loggingFactory } from '../src/utils'
@@ -88,8 +88,8 @@ export function subscribeMock (sequence: Array<Error | BlockHeader>, interval = 
   }
 }
 
-export function eventMock (options?: Partial<EventData>): EventData {
-  const testEvent = Substitute.for<EventData>()
+export function eventMock (options?: Partial<EventLog>): EventLog {
+  const testEvent = Substitute.for<EventLog>()
   options = options || {}
 
   for (const [key, value] of Object.entries(options)) {
@@ -104,7 +104,7 @@ export function eventMock (options?: Partial<EventData>): EventData {
   return testEvent
 }
 
-export function batchFactoryConstructor<E extends EventData> (start?: number, batchSize = 5): (e: E[]) => Batch<E> {
+export function batchFactoryConstructor<E extends EventLog> (start?: number, batchSize = 5): (e: E[]) => Batch<E> {
   let counter = 0
   let startBlock = start ?? 0
   startBlock -= batchSize
@@ -123,7 +123,7 @@ export function batchFactoryConstructor<E extends EventData> (start?: number, ba
   }
 }
 
-export function eventsFetcherMock<E extends EventData> (events?: E[][], blockTracker?: BlockTracker, name?: string, batchSize = 5): SubstituteOf<EventsFetcher<E>> {
+export function eventsFetcherMock<E extends EventLog> (events?: E[][], blockTracker?: BlockTracker, name?: string, batchSize = 5): SubstituteOf<EventsFetcher<E>> {
   const emitter = new Emittery()
 
   if (!blockTracker) {

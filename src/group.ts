@@ -1,7 +1,7 @@
 import { Eth } from 'web3-eth'
 import { Sema } from 'async-sema'
 import Emittery from 'emittery'
-import { EventData } from 'web3-eth-contract'
+import { EventLog } from 'web3-core'
 
 import {
   Batch,
@@ -20,7 +20,7 @@ import { initLogger, cumulateIterations, passTroughEvents } from './utils'
 import { BlockTracker } from './block-tracker'
 import { Web3Events } from './index'
 
-function compareEvents (event1: EventData, event2: EventData): number {
+function compareEvents (event1: EventLog, event2: EventLog): number {
   // First by block number
   if (event1.blockNumber !== event2.blockNumber) return event1.blockNumber - event2.blockNumber
 
@@ -37,7 +37,7 @@ function compareEvents (event1: EventData, event2: EventData): number {
  * @param emittersIterators
  * @param bufferAllBatches Flag that will fetch all emitter's events and emit them in one Batch. Should not be used for big data!
  */
-export async function * fetchBatches<E extends EventData> (emittersIterators: AsyncIterableIterator<Batch<E>>[], bufferAllBatches = false): AsyncIterableIterator<Batch<E>> {
+export async function * fetchBatches<E extends EventLog> (emittersIterators: AsyncIterableIterator<Batch<E>>[], bufferAllBatches = false): AsyncIterableIterator<Batch<E>> {
   while (true) {
     const [stillIterating, batches] = await cumulateIterations<Batch<E>>(emittersIterators, bufferAllBatches)
 
@@ -79,7 +79,7 @@ export async function * fetchBatches<E extends EventData> (emittersIterators: As
  * It re-emits events from the Emitters, but the data of the events are wrapped in object: { name: string, data: any}
  * Where `name` is the name of the Emitter and that `data` is data passed into the `emit` function.
  */
-export class GroupEventsEmitter<E extends EventData> extends Emittery.Typed<WrapWithName<ManualEventsEmitterEventsNames>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
+export class GroupEventsEmitter<E extends EventLog> extends Emittery.Typed<WrapWithName<ManualEventsEmitterEventsNames>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
   private readonly emitters: EventsFetcher<E>[]
   private readonly orderedProcessing?: boolean
   private readonly eth: Eth

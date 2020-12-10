@@ -2,6 +2,6 @@
 //
 // declare module Emittery{
 //   export class Typed<T> extends emittery.Typed<T>{
-//     on<T>(eventName: typeof emittery.listenerAdded | typeof emittery.listenerRemoved, listener: (eventData: emittery.ListenerChangedData) => void): emittery.UnsubscribeFn
+//     on<T>(eventName: typeof emittery.listenerAdded | typeof emittery.listenerRemoved, listener: (EventLog: emittery.ListenerChangedData) => void): emittery.UnsubscribeFn
 //   }
 // }

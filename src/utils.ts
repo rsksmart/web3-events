@@ -3,7 +3,7 @@ import debug from 'debug'
 import { keccak256 } from 'web3-utils'
 import { inspect } from 'util'
 import type { BlockHeader } from 'web3-eth'
-import type { EventData } from 'web3-eth-contract'
+import type { EventLog } from 'web3-core'
 
 import type { EventsFetcher, FetchOptions, Logger, StartStop } from './definitions'
 import {
@@ -83,11 +83,11 @@ export function hashTopics (topics?: (string[] | string)[]): (string[] | string)
  */
 export function passTroughEvents (from: Emittery, to: Emittery, events: string[], name?: string): void {
   for (const event of events) {
-    from.on(event, eventData => {
+    from.on(event, EventLog => {
       if (name) {
-        to.emit(event, { name, data: eventData })
+        to.emit(event, { name, data: EventLog })
       } else {
-        to.emit(event, eventData)
+        to.emit(event, EventLog)
       }
     })
   }
@@ -260,7 +260,7 @@ export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = n
  * Fetching is triggered using the NewBlockEmitter and is therefore up to the user
  * to chose what new-block strategy will employ.
  */
-export class AutoEventsEmitter<E extends EventData> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
+export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
   private readonly serialListeners?: boolean
   private readonly serialProcessing?: boolean
   private readonly newBlockEmitter: NewBlockEmitter
