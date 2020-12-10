@@ -127,7 +127,7 @@ export type EventsEmitterCreationOptions = {
   logger?: Logger
 } & ManualEventsEmitterOptions & AutoEventsEmitterOptions
 
-export interface FetchOptions{
+export interface FetchOptions {
   /**
    * Is the latest block on a blockchain, serves as optimization if you have already the information available.
    */
