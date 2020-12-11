@@ -9,7 +9,7 @@ export class Contract extends Web3Contract {
   constructor (abi: AbiItem[], address: string, name: string) {
     super(abi, address)
     this.abi = abi
-    this.address = address
+    this.address = address.toLowerCase()
     this.name = name
   }
 }
