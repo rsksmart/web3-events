@@ -1,13 +1,16 @@
 import { BlockHeader, BlockTransactionString, TransactionReceipt } from 'web3-eth'
 import { Arg, Substitute, SubstituteOf } from '@fluffy-spoon/substitute'
 import { EventLog } from 'web3-core'
+import { EventData } from 'web3-eth-contract'
+
 import path from 'path'
 import { Options, Sequelize } from 'sequelize'
-import { loggingFactory } from '../src/utils'
 import sqlFormatter from 'sql-formatter'
 import Sinon from 'sinon'
-import { Batch, BlockTracker, EventsFetcher } from '../src'
 import Emittery from 'emittery'
+
+import { Batch, BlockTracker, EventsFetcher } from '../src'
+import { loggingFactory } from '../src/utils'
 
 export function sleep<T> (ms: number, ...args: T[]): Promise<T> {
   return new Promise(resolve => setTimeout(() => resolve(...args), ms))
@@ -88,8 +91,8 @@ export function subscribeMock (sequence: Array<Error | BlockHeader>, interval = 
   }
 }
 
-export function eventMock (options?: Partial<EventLog>): EventLog {
-  const testEvent = Substitute.for<EventLog>()
+export function eventMock (options?: Partial<EventData>): EventData {
+  const testEvent = Substitute.for<EventData>()
   options = options || {}
 
   for (const [key, value] of Object.entries(options)) {
