@@ -1,6 +1,6 @@
 {
   "name": "@rsksmart/web3-events",
-  "version": "0.1.0-dev.3",
+  "version": "0.1.0-dev.4",
   "description": "Library for robust handling of web3 events",
   "keywords": [
     "web3",
@@ -76,6 +76,7 @@
   },
   "types": "types/index.d.ts",
   "contributors": [
-    "Adam Uhlíř <adam@uhlir.dev>"
+    "Adam Uhlíř <adam@uhlir.dev>",
+    "dependabot-preview[bot] <27856297+dependabot-preview[bot]@users.noreply.github.com>"
   ]
 }
