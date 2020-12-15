@@ -5,7 +5,7 @@ import { inspect } from 'util'
 import type { BlockHeader } from 'web3-eth'
 import type { EventLog } from 'web3-core'
 
-import type { EventsFetcher, FetchOptions, Logger, StartStop } from './definitions'
+import type { EventsFetcher, FetchOptions, Logger, ManualEventsEmitterEventsNames, StartStop } from './definitions'
 import {
   AutoEventsEmitterEventsName,
   AutoEventsEmitterOptions,
@@ -260,7 +260,12 @@ export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = n
  * Fetching is triggered using the NewBlockEmitter and is therefore up to the user
  * to chose what new-block strategy will employ.
  */
-export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmitter<AutoEventsEmitterEventsName<E>, EventsEmitterEmptyEvents> implements EventsFetcher<E> {
+export class AutoEventsEmitter<E extends EventLog,
+  ValueEvents extends AutoEventsEmitterEventsName<E> = ManualEventsEmitterEventsNames & AutoEventsEmitterEventsName<E>,
+  NonValueEvents extends string | symbol = EventsEmitterEmptyEvents> extends AutoStartStopEventEmitter<ValueEvents, NonValueEvents>
+  implements EventsFetcher<E> {
+  // eslint-disable-next-line no-trailing-spaces
+
   private readonly serialListeners?: boolean
   private readonly serialProcessing?: boolean
   private readonly newBlockEmitter: NewBlockEmitter
@@ -286,6 +291,7 @@ export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmi
         PROGRESS_EVENT_NAME
       ]
     )
+    // @ts-ignore
     this.newBlockEmitter.on('error', (e) => this.emit('error', e))
   }
 
@@ -298,11 +304,15 @@ export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmi
       // Will await for all the listeners to process the event before moving forward
       if (this.serialProcessing) {
         try {
+          // TODO: Waiting for help: https://github.com/sindresorhus/emittery/issues/71
+          // @ts-ignore
           await emittingFnc(NEW_EVENT_EVENT_NAME, data)
         } catch (e) {
+          // @ts-ignore
           this.emit('error', e)
         }
       } else { // Does not await and just move on
+        // @ts-ignore
         emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
       }
     }
@@ -322,6 +332,7 @@ export class AutoEventsEmitter<E extends EventLog> extends AutoStartStopEventEmi
       )
     } catch (e) {
       this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
+      // @ts-ignore
       this.emit('error', e)
     }
   }

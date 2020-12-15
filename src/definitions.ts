@@ -102,9 +102,11 @@ export type ManualEventsEmitterEventsNames = {
   'error': object
 }
 
-export type AutoEventsEmitterEventsName<E> = ManualEventsEmitterEventsNames & {
+export type AutoEventsEmitterEventsName<E> = {
   [NEW_EVENT_EVENT_NAME]: E
 }
+
+export type GroupEventsEmitterEventsName<E> = WrapWithName<ManualEventsEmitterEventsNames> & AutoEventsEmitterEventsName<E>
 
 export type EventsEmitterEmptyEvents = keyof {
   [REORG_EVENT_NAME]: void
@@ -269,7 +271,7 @@ export interface Logger {
 }
 
 export type WrapWithName<E> = {
-  [P in keyof E]?: {name: string, data: E[P]};
+  [P in keyof E]: {name: string, data: E[P]};
 }
 
 export interface NamespacedEvent<E> {

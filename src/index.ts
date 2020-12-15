@@ -8,7 +8,7 @@ import {
   BlockTrackerStore,
   Logger,
   NewBlockEmitter,
-  NewBlockEmitterOptions, CreateGroupEmitterOptions
+  NewBlockEmitterOptions, CreateGroupEmitterOptions, GroupEventsEmitterEventsName
 } from './definitions'
 import { ListeningNewBlockEmitter, PollingNewBlockEmitter } from './new-block-emitter'
 import { ManualEventsEmitter } from './events'
@@ -153,10 +153,10 @@ export class Web3Events {
    * @param options.serialProcessing Defines if the events should be kept in order and processed serially.
    * @param options.autoStart Default is true. Defines if the EventsEmitter should automatically start listening on events when an events listener for events is attached.
    */
-  public groupEventsEmitters<Events extends EventLog> (eventsEmitters: AutoEventsEmitter<any>[], options?: CreateGroupEmitterOptions): AutoEventsEmitter<Events> {
+  public groupEventsEmitters<Events extends EventLog> (eventsEmitters: AutoEventsEmitter<any>[], options?: CreateGroupEmitterOptions): AutoEventsEmitter<Events, GroupEventsEmitterEventsName<Events>> {
     const newBlockEmitter = this.resolveNewBlockEmitter(options?.newBlockEmitter) ?? this.defaultNBEmitter
     const groupEmitter = new GroupEventsEmitter<Events>(this.eth, eventsEmitters, options)
-    return new AutoEventsEmitter<Events>(groupEmitter, newBlockEmitter, options?.logger ?? initLogger(groupEmitter.name, this.logger), options)
+    return new AutoEventsEmitter<Events, GroupEventsEmitterEventsName<Events>>(groupEmitter, newBlockEmitter, options?.logger ?? initLogger(groupEmitter.name, this.logger), options)
   }
 
   public get defaultNewBlockEmitter (): NewBlockEmitter {
