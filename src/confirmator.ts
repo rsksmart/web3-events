@@ -1,6 +1,6 @@
-import { literal, Op } from 'sequelize'
-import type { EventLog } from 'web3-core'
+import { literal, Op, WhereOptions } from 'sequelize'
 import type { BlockHeader, Eth } from 'web3-eth'
+import { EventLog } from 'web3-core'
 
 import { Event } from './event.model'
 import { asyncSplit, initLogger, setDifference } from './utils'
@@ -32,12 +32,12 @@ export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
    */
   private readonly waitingBlockCount: number
 
-  constructor (emitter: ManualEventsEmitter<T>, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { baseLogger, waitingBlockCount }: ConfirmatorOptions = {}) {
+  constructor (emitter: ManualEventsEmitter<T>, eth: Eth, contractAddress: string, blockTracker: BlockTracker, { logger, waitingBlockCount }: ConfirmatorOptions = {}) {
     this.emitter = emitter
     this.eth = eth
     this.contractAddress = contractAddress
     this.blockTracker = blockTracker
-    this.logger = initLogger('confirmator', baseLogger)
+    this.logger = initLogger('confirmator', logger)
     this.waitingBlockCount = waitingBlockCount ?? DEFAULT_WAITING_BLOCK_COUNT
   }
 
@@ -47,8 +47,9 @@ export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
    * Before emitting it validates that the Event is still valid on blockchain using the transaction's receipt.
    *
    * @param currentBlock
+   * @param toBlockNum
    */
-  public async runConfirmationsRoutine (currentBlock: BlockHeader): Promise<T[]> {
+  public async runConfirmationsRoutine (currentBlock: BlockHeader, toBlockNum?: number): Promise<T[]> {
     if (typeof currentBlock.number !== 'number') {
       throw new TypeError('CurrentBlock.number is not a number!')
     }
@@ -57,12 +58,18 @@ export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
       throw new TypeError('waitingBlockCount is not a number!')
     }
 
+    const conditions: WhereOptions = {
+      contractAddress: this.contractAddress,
+      emitted: false
+    }
+
+    if (toBlockNum) {
+      conditions.blockNumber = { [Op.lte]: toBlockNum }
+    }
+
     this.logger.verbose('Running Confirmation routine')
     const events = await Event.findAll({
-      where: {
-        contractAddress: this.contractAddress,
-        emitted: false
-      }
+      where: conditions
     })
 
     if (!events) {
