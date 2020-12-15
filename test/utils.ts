@@ -1,6 +1,6 @@
 import { BlockHeader, BlockTransactionString, TransactionReceipt } from 'web3-eth'
 import { Arg, Substitute, SubstituteOf } from '@fluffy-spoon/substitute'
-import { EventLog } from 'web3-eth-contract'
+import { EventLog } from 'web3-core'
 import path from 'path'
 import { Options, Sequelize } from 'sequelize'
 import { loggingFactory } from '../src/utils'
