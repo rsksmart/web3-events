@@ -1,3 +1,18 @@
+<a name="0.1.0-dev.4"></a>
+# [0.1.0-dev.4](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.3...v0.1.0-dev.4) (2020-12-15)
+
+
+### Bug Fixes
+
+* use only lowercased contract address ([#27](https://github.com/rsksmart/web3-events/issues/27)) ([42702d5](https://github.com/rsksmart/web3-events/commit/42702d5))
+
+
+### Features
+
+* grouping support ([#25](https://github.com/rsksmart/web3-events/issues/25)) ([83f4df6](https://github.com/rsksmart/web3-events/commit/83f4df6))
+
+
+
 <a name="0.1.0-dev.3"></a>
 # [0.1.0-dev.3](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.2...v0.1.0-dev.3) (2020-11-03)
 
