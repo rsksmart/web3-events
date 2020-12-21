@@ -132,6 +132,12 @@ export class GroupEventsEmitter<E extends EventLog> extends Emittery.Typed<WrapW
   }
 
   async * fetch (options: FetchOptions = {}): AsyncIterableIterator<Batch<E>> {
+    this.logger.verbose('Acquiring lock for fetch()')
+
+    if (this.semaphore.nrWaiting() > 0) {
+      this.logger.warn(`There is multiple fetch() call queued up! Count: ${this.semaphore.nrWaiting()}`)
+    }
+
     await this.semaphore.acquire()
     this.logger.verbose('Lock acquired for fetch()')
 
