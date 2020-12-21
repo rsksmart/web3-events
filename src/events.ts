@@ -85,6 +85,12 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
    * @yields Batch object
    */
   public async * fetch (options?: FetchOptions): AsyncIterableIterator<Batch<E>> {
+    this.logger.verbose('Acquiring lock for fetch()')
+
+    if (this.semaphore.nrWaiting() > 0) {
+      this.logger.warn(`There is multiple fetch() call queued up! Count: ${this.semaphore.nrWaiting()}`)
+    }
+
     await this.semaphore.acquire()
     this.logger.verbose('Lock acquired for fetch()')
     try {
