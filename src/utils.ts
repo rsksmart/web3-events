@@ -262,7 +262,7 @@ export abstract class AutoStartStopEventEmitter<T, E extends string | symbol = n
  */
 export class AutoEventsEmitter<E extends EventLog,
   ValueEvents extends AutoEventsEmitterEventsName<E> = ManualEventsEmitterEventsNames & AutoEventsEmitterEventsName<E>,
-  NonValueEvents extends string | symbol = EventsEmitterEmptyEvents> extends AutoStartStopEventEmitter<ValueEvents, NonValueEvents>
+  NonValueEvents extends string | symbol = EventsEmitterEmptyEvents> extends AutoStartStopEventEmitter<ValueEvents & AutoEventsEmitterEventsName<E>, NonValueEvents>
   implements EventsFetcher<E> {
   // eslint-disable-next-line no-trailing-spaces
 
@@ -304,15 +304,12 @@ export class AutoEventsEmitter<E extends EventLog,
       // Will await for all the listeners to process the event before moving forward
       if (this.serialProcessing) {
         try {
-          // TODO: Waiting for help: https://github.com/sindresorhus/emittery/issues/71
-          // @ts-ignore
           await emittingFnc(NEW_EVENT_EVENT_NAME, data)
         } catch (e) {
           // @ts-ignore
           this.emit('error', e)
         }
       } else { // Does not await and just move on
-        // @ts-ignore
         emittingFnc(NEW_EVENT_EVENT_NAME, data).catch(e => this.emit('error', e))
       }
     }
