@@ -104,6 +104,7 @@ export type ManualEventsEmitterEventsNames = {
 
 export type AutoEventsEmitterEventsName<E> = {
   [NEW_EVENT_EVENT_NAME]: E
+  'error': object
 }
 
 export type GroupEventsEmitterEventsName<E> = WrapWithName<ManualEventsEmitterEventsNames> & AutoEventsEmitterEventsName<E>
