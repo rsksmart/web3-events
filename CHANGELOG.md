@@ -1,3 +1,18 @@
+<a name="0.1.0-dev.5"></a>
+# [0.1.0-dev.5](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.4...v0.1.0-dev.5) (2021-01-08)
+
+
+### Bug Fixes
+
+* group logging ([#52](https://github.com/rsksmart/web3-events/issues/52)) ([fd37ddc](https://github.com/rsksmart/web3-events/commit/fd37ddc))
+
+
+### Features
+
+* warn when semaphore is queuing up ([#35](https://github.com/rsksmart/web3-events/issues/35)) ([36a554e](https://github.com/rsksmart/web3-events/commit/36a554e))
+
+
+
 <a name="0.1.0-dev.4"></a>
 # [0.1.0-dev.4](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.3...v0.1.0-dev.4) (2020-12-15)
 
