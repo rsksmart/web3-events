@@ -32,7 +32,8 @@ export class PollingNewBlockEmitter extends AutoStartStopEventEmitter<NewBlockEm
         this.emit(NEW_BLOCK_EVENT_NAME, lastBlock).catch(e => this.emit('error', e))
       }
     } catch (e) {
-      this.logger.error(`While fetching latest block error happend: ${e}`)
+      this.logger.error('While fetching latest block error happend!')
+      this.logger.error(e)
       this.emit('error', e)
     }
   }
