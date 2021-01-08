@@ -328,8 +328,8 @@ export class AutoEventsEmitter<E extends EventLog,
         this.fetch({ currentBlock })
       )
     } catch (e) {
-      this.logger.error('Error in the processing loop:\n' + JSON.stringify(e, undefined, 2))
-      // @ts-ignore
+      this.logger.error('Error in the processing loop!')
+      this.logger.error(e)
       this.emit('error', e)
     }
   }
