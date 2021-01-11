@@ -393,6 +393,35 @@ describe('ManualEventsEmitter', () => {
   })
 
   describe('with confirmations', () => {
+    it('should always emit two batches when fetch happens', async function () {
+      // one batch for confirmed events and then one batch for fetched/processed events
+      const contract = Substitute.for<Contract>()
+      contract.address.returns!('0x123')
+      contract.getPastEvents(Arg.all()).resolves([])
+
+      const eth = Substitute.for<Eth>()
+      eth.getBlock(5).resolves(blockMock(5, '0x11111'))
+      eth.getBlock(10).resolves(blockMock(10))
+
+      const blockTracker = new BlockTracker({})
+      blockTracker.setLastFetchedBlock(5, '0x11111')
+
+      // We deliberately disable Confirmator in order not to intervene with our assertions
+      const options = { confirmations: 2, events: ['testEvent'] }
+      const eventsEmitter = new ManualEventsEmitter(eth, contract, blockTracker, loggingFactory('web3events:test'), options)
+      const batches = await wholeGenerator(eventsEmitter.fetch({ currentBlock: blockMock(10) }))
+
+      expect(batches).to.have.length(2)
+      expect(batches[0].stepFromBlock).to.eql(3)
+      expect(batches[0].stepToBlock).to.eql(5)
+      expect(batches[0].events).to.have.length(0)
+      expect(batches[1].stepFromBlock).to.eql(6)
+      expect(batches[1].stepToBlock).to.eql(10)
+      expect(batches[1].events).to.have.length(0)
+      expect(blockTracker.getLastFetchedBlock()).to.eql([10, '0x123'])
+      contract.received(1).getPastEvents(Arg.all())
+    })
+
     it('should process past events', async function () {
       const events = [
         eventMock({ blockHash: '0x123', blockNumber: 1, transactionHash: '1' }),
@@ -512,8 +541,8 @@ describe('ManualEventsEmitter', () => {
       expect(confirmedEvents).to.have.length(3)
 
       // First batch is confirmed events
-      expect(confirmedEvents[0].stepFromBlock).to.eql(8)
-      expect(confirmedEvents[0].stepToBlock).to.eql(9)
+      expect(confirmedEvents[0].stepFromBlock).to.eql(8) // Last fetched block - confirmations (2)
+      expect(confirmedEvents[0].stepToBlock).to.eql(10) // Last fetched block
       expect(confirmedEvents[0].events).to.have.length(2) // 2 confirmed events
       expect(confirmedEvents[0].events[0]).to.eql({ event: 'testEvent', blockNumber: 9, blockHash: '0x123' })
       expect(confirmedEvents[0].events[1]).to.eql({ event: 'testEvent', blockNumber: 9, blockHash: '0x123' })
@@ -585,13 +614,16 @@ describe('ManualEventsEmitter', () => {
       const eventsEmitter = new ManualEventsEmitter(eth, contract, blockTracker, loggingFactory('web3events:test'), options)
 
       // Fetch only to block number 8
-      const confirmedEvents = await wholeGenerator(eventsEmitter.fetch({ toBlockNumber: 10, currentBlock: blockMock(14) }))
+      const confirmedEvents = await wholeGenerator(eventsEmitter.fetch({
+        toBlockNumber: 10,
+        currentBlock: blockMock(14)
+      }))
 
       expect(confirmedEvents).to.have.length(2)
 
       // First batch is confirmed events
       expect(confirmedEvents[0].stepFromBlock).to.eql(6)
-      expect(confirmedEvents[0].stepToBlock).to.eql(10)
+      expect(confirmedEvents[0].stepToBlock).to.eql(9)
       expect(confirmedEvents[0].events).to.have.length(2) // only 2 confirmed events
       expect(confirmedEvents[0].events[0]).to.eql({ event: 'testEvent', blockNumber: 7, blockHash: '0x123' })
       expect(confirmedEvents[0].events[1]).to.eql({ event: 'testEvent', blockNumber: 10, blockHash: '0x123' })

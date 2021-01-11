@@ -34,11 +34,11 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
   protected readonly eventNames?: string[]
   protected readonly eth: Eth
   protected readonly semaphore: Sema
-  protected readonly confirmations: number
   protected readonly topics?: (string[] | string)[]
   protected readonly logger: Logger
   private confirmator?: ModelConfirmator<E>
   public readonly batchSize: number
+  public readonly confirmations: number
 
   constructor (eth: Eth, contract: Contract, blockTracker: BlockTracker, baseLogger: Logger, options?: ManualEventsEmitterOptions) {
     super()
@@ -77,7 +77,12 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
   /**
    * Method that will fetch Events from the last fetched block.
    * If nothing was fetched yet, then fetching starts from configured startingBlock or genesis block.
-   * If there is nothing to fetch (eq. from last call no new block was created on the chain) then empty array is returned.
+   * If there is nothing to fetch (eq. from last call no new block was created on the chain) then nothing is yielded.
+   * If there is no events fetched then empty batch is yielded anyway.
+   *
+   * If confirmations are enabled, then it will ALWAYS emit at least two batches, where the first
+   * batches is one with all the confirmed events (even though there might be no events to be confirmed)
+   * and then later on is processing the from-to range as configured with batching enabled.
    *
    * @param options
    * @param options.currentBlock: Is the latest block on a blockchain, serves as optimization if you have already the information available.
@@ -113,9 +118,10 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
         return this.handleReorg(currentBlock)
       }
 
-      // Pass through the data from batch
+      // Pass through the batches
       yield * this.batchFetchAndProcessEvents(
         // +1 because fromBlock and toBlock are "or equal", eq. closed interval, so we need to avoid duplications
+        // if nothing is fetched yet though then we start really from the fromNumber specified
         this.tracker.getLastFetchedBlock()[0] !== undefined ? fromNumber + 1 : fromNumber,
         toNumber,
         currentBlock
@@ -168,6 +174,11 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 
   /**
    * Fetch and process events in batches.
+   *
+   * If confirmations are enabled, then it will ALWAYS emit at least two batches, where the first
+   * batches is one with all the confirmed events (this does not currently respects the from-to range specified by parameters)
+   * and then later on is processing the from-to range as configured with batching enabled.
+   *
    * The interval defined by fromBlock and toBlock is closed, eq. "or equal".
    *
    * @param fromBlockNum
@@ -205,30 +216,31 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
       // TODO: This does not respects the from-to block range
       const confirmedEvents = await this.confirmator.runConfirmationsRoutine(currentBlock, toBlockNum)
 
-      if (confirmedEvents.length > 0) {
-        batchOffset += 1
-        const lastEvent = confirmedEvents[confirmedEvents.length - 1]
-        this.logger.verbose('Emitting Batch with Confirmed events')
+      batchOffset += 1
+      this.logger.verbose('Emitting Batch with Confirmed events')
 
-        yield {
-          stepsComplete: 1,
-          totalSteps: countOfBatches + batchOffset,
-          stepFromBlock: this.tracker.getLastProcessedBlock()[0]!,
-          stepToBlock: lastEvent.blockNumber,
-          events: confirmedEvents
-        }
-        this.tracker.setLastProcessedBlockIfHigher(lastEvent.blockNumber, lastEvent.blockHash)
-
-        this.emit(PROGRESS_EVENT_NAME, {
-          stepsComplete: batch + 1,
-          totalSteps: countOfBatches,
-          stepFromBlock: this.tracker.getLastProcessedBlock()[0]!,
-          stepToBlock: lastEvent.blockNumber
-        }).catch(e => this.emit('error', e))
+      yield {
+        stepsComplete: batch + 1,
+        totalSteps: countOfBatches + batchOffset,
+        stepFromBlock: this.tracker.getLastFetchedBlock()[0]! - this.confirmations,
+        stepToBlock: this.tracker.getLastFetchedBlock()[0]!,
+        events: confirmedEvents
       }
+
+      if (confirmedEvents.length > 0) {
+        const lastEvent = confirmedEvents[confirmedEvents.length - 1]
+        this.tracker.setLastProcessedBlockIfHigher(lastEvent.blockNumber, lastEvent.blockHash)
+      }
+
+      this.emit(PROGRESS_EVENT_NAME, {
+        stepsComplete: batch + 1,
+        totalSteps: countOfBatches + batchOffset,
+        stepFromBlock: this.tracker.getLastFetchedBlock()[0]! - this.confirmations,
+        stepToBlock: this.tracker.getLastFetchedBlock()[0]!
+      }).catch(e => this.emit('error', e))
     }
 
-    this.logger.verbose(`Will process ${countOfBatches + batchOffset} batches`)
+    this.logger.verbose(`Will process ${countOfBatches} batches`)
 
     for (; batch < countOfBatches; batch++) {
       // The first batch starts at fromBlock sharp, but the others has to start +1 to avoid reprocessing of the bordering block

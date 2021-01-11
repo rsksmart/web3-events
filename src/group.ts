@@ -72,7 +72,7 @@ export async function * fetchBatches<E extends EventLog> (emittersIterators: Asy
 
 /**
  * EventsFetcher implementation that takes other Emitters and group then under one Emitter.
- * The Emitters have to have same `batchSize` and must not have any `newEvent` listeners (in `AutoEventsEmitter` case).
+ * The Emitters have to have same `batchSize`, `confirmations` and must not have any `newEvent` listeners (in `AutoEventsEmitter` case).
  *
  * Also supports ordering of events across the emitters based on the blockchain's blockNumber, transactionIndex and logIndex values.
  *
@@ -107,6 +107,10 @@ export class GroupEventsEmitter<E extends EventLog> extends Emittery.Typed<WrapW
 
       if (emitter.batchSize !== emitters[0].batchSize) {
         throw new Error(`Emitter for contract ${emitter.name} has different batch size! ${emitter.batchSize} != ${emitters[0].batchSize}`)
+      }
+
+      if (emitter.confirmations !== emitters[0].confirmations) {
+        throw new Error(`Emitter for contract ${emitter.name} has different confirmations! ${emitter.confirmations} != ${emitters[0].confirmations}`)
       }
 
       // TODO: Awaiting resolution of https://github.com/sindresorhus/emittery/issues/63
@@ -230,5 +234,12 @@ export class GroupEventsEmitter<E extends EventLog> extends Emittery.Typed<WrapW
    */
   public get batchSize (): number {
     return this.emitters[0].batchSize
+  }
+
+  /**
+   * All Emitters has to have the same confirmations so we can return just the first one
+   */
+  public get confirmations (): number {
+    return this.emitters[0].confirmations
   }
 }

@@ -234,9 +234,9 @@ describe('group', () => {
         expect(result[1].events.map(event => event.event)).to.eql(['normalEvent1', 'normalEvent2', 'normalEvent3'])
       })
 
-      it('should not run syncing when no events were ever fetched yet', async () => {
-        // TODO: ...
-      })
+      // TODO: ...
+      // it('should not run syncing when no events were ever fetched yet', async () => {
+      // })
 
       it('should passthrough all expected events', async () => {
         const eth = Substitute.for<Eth>()

@@ -148,6 +148,7 @@ export interface EventsFetcher<E> extends Emittery {
   fetch(options?: FetchOptions): AsyncIterableIterator<Batch<E>>
   blockTracker: BlockTracker
   batchSize: number
+  confirmations: number
   name: string
 }
 
