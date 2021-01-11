@@ -360,6 +360,10 @@ export class AutoEventsEmitter<E extends EventLog,
     return this.eventsFetcher.batchSize
   }
 
+  public get confirmations (): number {
+    return this.eventsFetcher.confirmations
+  }
+
   public get blockTracker (): BlockTracker {
     return this.eventsFetcher.blockTracker
   }

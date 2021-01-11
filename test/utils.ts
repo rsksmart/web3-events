@@ -126,7 +126,7 @@ export function batchFactoryConstructor<E extends EventLog> (start?: number, bat
   }
 }
 
-export function eventsFetcherMock<E extends EventLog> (events?: E[][], blockTracker?: BlockTracker, name?: string, batchSize = 5): SubstituteOf<EventsFetcher<E>> {
+export function eventsFetcherMock<E extends EventLog> (events?: E[][], blockTracker?: BlockTracker, name?: string, batchSize = 5, confirmations = 0): SubstituteOf<EventsFetcher<E>> {
   const emitter = new Emittery()
 
   if (!blockTracker) {
@@ -137,6 +137,7 @@ export function eventsFetcherMock<E extends EventLog> (events?: E[][], blockTrac
 
   const fetcher = Substitute.for<EventsFetcher<E>>()
   fetcher.batchSize.returns!(batchSize)
+  fetcher.confirmations.returns!(confirmations)
   fetcher.listenerCount(Arg.all()).returns(0)
   fetcher.blockTracker.returns!(blockTracker)
 
