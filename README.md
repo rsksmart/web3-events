@@ -52,13 +52,15 @@ eventsEmitter.on('event', (event: SomeEvent) => {
 There are several building blocks that cooperate to make the listening on events happen. Bellow is a basic overview:
 
  - `Web3Events`: higher level class that serves as glue for the rest of the components, making easier for users to create `EventsEmitters`.
- - `BlockTracker`: component that serves for persistant storage of data regarding what blocks were fetched or processed.
- - `NewBlockEmitters`: component that tracks wheter there is a new block on the blockchain. It serves as a trigger for most of the actions in the others components.
+ - `BlockTracker`: component that serves for persistent storage of data regarding what blocks were fetched or processed.
+ - `NewBlockEmitters`: component that tracks whether there is a new block on the blockchain. It serves as a trigger for most of the actions in the others components.
  - `Confirmator`: component that handles confirmations of blocks based on the configuration.
- - `EventsEmitter`: the main component that is linked to given Contract and listens on configured events/topics and emits them to the user. There are three implementations.
+ - `EventsFetcher`: the main interface that defines simple API for fetching events. There are three implementations.
     - `ManualEventsEmitter`: this implementation works only through `fetch()` method that you have to call yourself manually.
     - `AutoEventsEmitter`: this implementation use `NewBlockEmitter` to automatically trigger `fetch()` upon new blocked detected and emits them as events.
     - `GroupEventsEmitter`: this implementation groups already existing Emitters under one Emitter. Mainly used for logical groupping of Contracts or when you need cross-Contract order dependant Events processing.
+
+![Components Overview](./docs/images/components-overview.png)
 
 ### Confirmations
 
@@ -80,6 +82,12 @@ You can pass your own logger for better logging support it just have to adhere t
 
 Optionally it can have function `extend(name: string) => Logger` that creates a new Logger with an extended name. E.g. if you have for example
 logger `web3events` calling on it `extend('blockTracker')` would returned logger with name `web3events:blockTracker`.
+
+### Fetch flow
+
+To better understand what happens when events are fetched from blockchain see bellow flow chart.
+
+![fetch() flowchart](./docs/images/fetch-flow.png)
 
 ## API
 
