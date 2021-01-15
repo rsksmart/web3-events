@@ -1,3 +1,6 @@
+# System files
+.DS_Store
+
 # Build/release files
 lib
 types
