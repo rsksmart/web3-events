@@ -115,7 +115,17 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 
       // Check if reorg did not happen since the last poll
       if (this.confirmations && await this.isReorg()) {
-        return this.handleReorg(currentBlock)
+        const confirmedEvents = await this.handleReorg(currentBlock)
+        if (confirmedEvents.length) {
+          yield {
+            totalSteps: 1,
+            stepsComplete: 1,
+            stepFromBlock: fromNumber,
+            stepToBlock: toNumber,
+            events: confirmedEvents
+          }
+        }
+        return
       }
 
       // Pass through the batches
@@ -331,7 +341,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
     return true
   }
 
-  protected async handleReorg (currentBlock: BlockHeader): Promise<void> {
+  protected async handleReorg (currentBlock: BlockHeader): Promise<E[]> {
     const [lastProcessedBlockNumber] = this.tracker.getLastProcessedBlock()
 
     const newEvents = await this.contract.getPastEvents('allEvents', {
@@ -343,8 +353,9 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 
     // Remove all events that currently awaiting confirmation
     await Event.destroy({ where: { contractAddress: this.contract.address } })
-    await this.processEvents(newEvents, currentBlock.number)
+    const confirmedEvents = await this.processEvents(newEvents, currentBlock.number)
     this.tracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
+    return confirmedEvents
   }
 
   private serializeEvent (data: EventLog): EventInterface {

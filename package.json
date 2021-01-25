@@ -35,7 +35,8 @@
     "types-check": "tasegir types-check",
     "lint": "tasegir lint",
     "release": "tasegir release --no-docs --target=node --no-build",
-    "test": "tasegir test --target node"
+    "test": "tasegir test --target node",
+    "tasegir:link": "ln -s ./node_modules/tasegir/src/config/tsconfig.json ./tsconfig.json && ln -s ./node_modules/tasegir/src/config/eslintrc.js ./.eslintrc.js"
   },
   "dependencies": {
     "async-sema": "^3.1.0",
