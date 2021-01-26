@@ -353,7 +353,7 @@ describe('ManualEventsEmitter', () => {
       expect(await Event.count()).to.eql(1)
     })
 
-    it.only('should emmit events which confirmed on reorg time', async () => {
+    it('should emmit events which confirmed on reorg time', async () => {
       const eth = Substitute.for<Eth>()
       eth.getBlock(10).resolves(blockMock(10, '0x321')) // Different hash ==> reorg
       eth.getBlock(8).resolves(blockMock(8, '0x222')) // Same hash ==> reorg in confirmation range
@@ -361,11 +361,11 @@ describe('ManualEventsEmitter', () => {
       const contract = Substitute.for<Contract>()
       contract.address.returns!('0x123')
       contract.getPastEvents('allEvents', { fromBlock: 9, toBlock: 11 }).resolves( // 9 because we don't want to reprocess 8th already processed block
-          [
-            eventMock({ blockNumber: 11, transactionHash: '1' }),
-            eventMock({ blockNumber: 9, transactionHash: '2' }), // Confirmed event
-            eventMock({ blockNumber: 9, transactionHash: '3' }) // Confirmed event
-          ]
+        [
+          eventMock({ blockNumber: 11, transactionHash: '1' }),
+          eventMock({ blockNumber: 9, transactionHash: '2' }), // Confirmed event
+          eventMock({ blockNumber: 9, transactionHash: '3' }) // Confirmed event
+        ]
       )
 
       const blockTracker = new BlockTracker({})

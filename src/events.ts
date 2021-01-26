@@ -116,6 +116,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
       // Check if reorg did not happen since the last poll
       if (this.confirmations && await this.isReorg()) {
         const confirmedEvents = await this.handleReorg(currentBlock)
+
         if (confirmedEvents.length) {
           yield {
             totalSteps: 1,
