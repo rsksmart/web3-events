@@ -117,14 +117,12 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
       if (this.confirmations && await this.isReorg()) {
         const confirmedEvents = await this.handleReorg(currentBlock)
 
-        if (confirmedEvents.length) {
-          yield {
-            totalSteps: 1,
-            stepsComplete: 1,
-            stepFromBlock: this.tracker.getLastFetchedBlock()[0]! - this.confirmations,
-            stepToBlock: this.tracker.getLastFetchedBlock()[0]!,
-            events: confirmedEvents
-          }
+        yield {
+          totalSteps: 1,
+          stepsComplete: 1,
+          stepFromBlock: this.tracker.getLastProcessedBlock()[0]!,
+          stepToBlock: currentBlock.number,
+          events: confirmedEvents
         }
         return
       }
