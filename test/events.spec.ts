@@ -353,6 +353,49 @@ describe('ManualEventsEmitter', () => {
       expect(await Event.count()).to.eql(1)
     })
 
+    it.only('should emmit events which confirmed on reorg time', async () => {
+      const eth = Substitute.for<Eth>()
+      eth.getBlock(10).resolves(blockMock(10, '0x321')) // Different hash ==> reorg
+      eth.getBlock(8).resolves(blockMock(8, '0x222')) // Same hash ==> reorg in confirmation range
+
+      const contract = Substitute.for<Contract>()
+      contract.address.returns!('0x123')
+      contract.getPastEvents('allEvents', { fromBlock: 9, toBlock: 11 }).resolves( // 9 because we don't want to reprocess 8th already processed block
+          [
+            eventMock({ blockNumber: 11, transactionHash: '1' }),
+            eventMock({ blockNumber: 9, transactionHash: '2' }), // Confirmed event
+            eventMock({ blockNumber: 9, transactionHash: '3' }) // Confirmed event
+          ]
+      )
+
+      const blockTracker = new BlockTracker({})
+      blockTracker.setLastFetchedBlock(10, '0x123')
+      blockTracker.setLastProcessedBlockIfHigher(8, '0x222')
+
+      const options = {
+        confirmations: 1,
+        confirmator: Substitute.for<ModelConfirmator<any>>(),
+        events: ['testEvent']
+      }
+      const reorgSpy = sinon.spy()
+      const reorgOutOfRangeSpy = sinon.spy()
+      const eventsEmitter = new ManualEventsEmitter(eth, contract, blockTracker, loggingFactory('web3events:test'), options)
+      eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
+      eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
+      await setImmediatePromise()
+
+      const events = await wholeGenerator(eventsEmitter.fetch({ currentBlock: blockMock(11) }))
+
+      contract.received(1).getPastEvents('allEvents', { fromBlock: 9, toBlock: 11 })
+      eth.received(2).getBlock(Arg.all())
+      expect(blockTracker.getLastFetchedBlock()).to.eql([11, '0x123'])
+      expect(events).to.have.length(1)
+      expect(events[0].events).to.have.length(2)
+      expect(reorgSpy).to.have.callCount(1)
+      expect(reorgOutOfRangeSpy).to.have.callCount(0)
+      expect(await Event.count()).to.eql(1)
+    })
+
     it('should handle reorg and detect reorg outside of confirmation range', async () => {
       const eth = Substitute.for<Eth>()
       eth.getBlock(10).resolves(blockMock(10, '0x321')) // Different hash ==> reorg

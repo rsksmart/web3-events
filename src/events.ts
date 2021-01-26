@@ -120,8 +120,8 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
           yield {
             totalSteps: 1,
             stepsComplete: 1,
-            stepFromBlock: fromNumber,
-            stepToBlock: toNumber,
+            stepFromBlock: this.tracker.getLastFetchedBlock()[0]! - this.confirmations,
+            stepToBlock: this.tracker.getLastFetchedBlock()[0]!,
             events: confirmedEvents
           }
         }
