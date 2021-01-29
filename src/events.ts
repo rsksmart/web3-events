@@ -358,7 +358,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
     // Emit confirmed events
     if (this.confirmator) {
       const emitConfirmation = this.confirmator?.emitNewConfirmationsClosure(currentBlock.number)
-      confirmedEvents.forEach((event: E) => emitConfirmation(this.serializeEvent(event) as Event))
+      confirmedEvents.forEach((event: E) => emitConfirmation(new Event(this.serializeEvent(event))))
     }
     this.tracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
     return confirmedEvents
