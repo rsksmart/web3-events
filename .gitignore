@@ -2,9 +2,9 @@
 .DS_Store
 
 # Build/release files
-#lib
-#types
-#dist
+lib
+types
+dist
 
 # Logs
 logs
