@@ -354,6 +354,12 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
     await Event.destroy({ where: { contractAddress: this.contract.address } })
     const confirmedEvents = await this.processEvents(newEvents, currentBlock.number)
     this.logger.debug(`Handle reorg: get and procees events from ${(lastProcessedBlockNumber ? lastProcessedBlockNumber + 1 : false) || this.startingBlock}, to ${currentBlock.number} `, confirmedEvents)
+
+    // Emit confirmed events
+    if (this.confirmator) {
+      const emitConfirmation = this.confirmator?.emitNewConfirmationsClosure(currentBlock.number)
+      confirmedEvents.forEach((event: E) => emitConfirmation(this.serializeEvent(event) as Event))
+    }
     this.tracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
     return confirmedEvents
   }

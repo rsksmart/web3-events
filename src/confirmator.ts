@@ -111,7 +111,7 @@ export class ModelConfirmator<T extends EventLog> implements Confirmator<T> {
     }
   }
 
-  private emitNewConfirmationsClosure (currentBlockNumber: number) {
+  public emitNewConfirmationsClosure (currentBlockNumber: number) {
     return (event: Event): void => {
       const data = {
         event: event.event,
