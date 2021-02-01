@@ -16,7 +16,7 @@ import {
   BlockTracker,
   Contract,
   ManualEventsEmitterOptions,
-  ModelConfirmator,
+  ModelConfirmator, NEW_CONFIRMATION_EVENT_NAME,
   PROGRESS_EVENT_NAME,
   REORG_EVENT_NAME,
   REORG_OUT_OF_RANGE_EVENT_NAME, Web3Events
@@ -379,9 +379,11 @@ describe('ManualEventsEmitter', () => {
       }
       const reorgSpy = sinon.spy()
       const reorgOutOfRangeSpy = sinon.spy()
+      const confirmationSpy = sinon.spy()
       const eventsEmitter = new ManualEventsEmitter(eth, contract, blockTracker, loggingFactory('web3events:test'), options)
       eventsEmitter.on(REORG_EVENT_NAME, reorgSpy)
       eventsEmitter.on(REORG_OUT_OF_RANGE_EVENT_NAME, reorgOutOfRangeSpy)
+      eventsEmitter.on(NEW_CONFIRMATION_EVENT_NAME, confirmationSpy)
       await setImmediatePromise()
 
       const events = await wholeGenerator(eventsEmitter.fetch({ currentBlock: blockMock(11) }))
@@ -393,6 +395,7 @@ describe('ManualEventsEmitter', () => {
       expect(events[0].events).to.have.length(2)
       expect(reorgSpy).to.have.callCount(1)
       expect(reorgOutOfRangeSpy).to.have.callCount(0)
+      expect(confirmationSpy).to.have.callCount(2)
       expect(await Event.count()).to.eql(1)
     })
 
