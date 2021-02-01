@@ -317,6 +317,7 @@ export class AutoEventsEmitter<E extends EventLog,
 
   protected async convertIteratorToEmitter (iter: AsyncIterableIterator<Batch<E>>): Promise<void> {
     for await (const batch of iter) {
+      this.logger.debug('Emitting batch', batch)
       await this.emitEvents(batch.events)
     }
   }

@@ -115,7 +115,16 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 
       // Check if reorg did not happen since the last poll
       if (this.confirmations && await this.isReorg()) {
-        return this.handleReorg(currentBlock)
+        const confirmedEvents = await this.handleReorg(currentBlock)
+
+        yield {
+          totalSteps: 1,
+          stepsComplete: 1,
+          stepFromBlock: this.tracker.getLastProcessedBlock()[0]!,
+          stepToBlock: currentBlock.number,
+          events: confirmedEvents
+        }
+        return
       }
 
       // Pass through the batches
@@ -331,7 +340,7 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
     return true
   }
 
-  protected async handleReorg (currentBlock: BlockHeader): Promise<void> {
+  protected async handleReorg (currentBlock: BlockHeader): Promise<E[]> {
     const [lastProcessedBlockNumber] = this.tracker.getLastProcessedBlock()
 
     const newEvents = await this.contract.getPastEvents('allEvents', {
@@ -343,8 +352,16 @@ export class ManualEventsEmitter<E extends EventLog> extends Emittery.Typed<Manu
 
     // Remove all events that currently awaiting confirmation
     await Event.destroy({ where: { contractAddress: this.contract.address } })
-    await this.processEvents(newEvents, currentBlock.number)
+    const confirmedEvents = await this.processEvents(newEvents, currentBlock.number)
+    this.logger.debug(`Handle reorg: get and procees events from ${(lastProcessedBlockNumber ? lastProcessedBlockNumber + 1 : false) || this.startingBlock}, to ${currentBlock.number} `, confirmedEvents)
+
+    // Emit confirmed events
+    if (this.confirmator) {
+      const emitConfirmation = this.confirmator?.emitNewConfirmationsClosure(currentBlock.number)
+      confirmedEvents.forEach((event: E) => emitConfirmation(new Event(this.serializeEvent(event))))
+    }
     this.tracker.setLastFetchedBlock(currentBlock.number, currentBlock.hash)
+    return confirmedEvents
   }
 
   private serializeEvent (data: EventLog): EventInterface {
