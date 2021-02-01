@@ -67,7 +67,7 @@
     "dirty-chai": "^2.0.1",
     "sinon": "^9.2.1",
     "sinon-chai": "^3.5.0",
-    "sql-formatter": "^2.3.3",
+    "sql-formatter": "^4.0.0",
     "sqlite3": "^5.0.0",
     "tasegir": "^1.8.0"
   },
