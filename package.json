@@ -1,6 +1,6 @@
 {
   "name": "@rsksmart/web3-events",
-  "version": "0.1.0-dev.5",
+  "version": "0.1.0-dev.6",
   "description": "Library for robust handling of web3 events",
   "keywords": [
     "web3",

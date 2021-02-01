@@ -1,3 +1,13 @@
+<a name="0.1.0-dev.6"></a>
+# [0.1.0-dev.6](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.5...v0.1.0-dev.6) (2021-01-11)
+
+
+### Bug Fixes
+
+* always emit confirmation batch when confirmations are on ([#54](https://github.com/rsksmart/web3-events/issues/54)) ([4ea4a30](https://github.com/rsksmart/web3-events/commit/4ea4a30))
+
+
+
 <a name="0.1.0-dev.5"></a>
 # [0.1.0-dev.5](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.4...v0.1.0-dev.5) (2021-01-08)
 
