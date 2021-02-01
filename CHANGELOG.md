@@ -1,3 +1,13 @@
+<a name="0.1.0-dev.7"></a>
+# [0.1.0-dev.7](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.6...v0.1.0-dev.7) (2021-02-01)
+
+
+### Bug Fixes
+
+* **reorg:** event emitting issue ([#69](https://github.com/rsksmart/web3-events/issues/69)) ([8c9c833](https://github.com/rsksmart/web3-events/commit/8c9c833))
+
+
+
 <a name="0.1.0-dev.6"></a>
 # [0.1.0-dev.6](https://github.com/rsksmart/web3-events/compare/v0.1.0-dev.5...v0.1.0-dev.6) (2021-01-11)
 
