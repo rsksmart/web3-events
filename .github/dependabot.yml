@@ -1,0 +1,46 @@
+version: 2
+updates:
+- package-ecosystem: npm
+  directory: "/"
+  schedule:
+    interval: weekly
+    time: "09:00"
+    timezone: Europe/Prague
+  open-pull-requests-limit: 10
+  reviewers:
+  - AuHau
+  ignore:
+  - dependency-name: "@fluffy-spoon/substitute"
+    versions:
+    - 1.185.0
+    - 1.187.0
+    - 1.190.0
+    - 1.192.0
+    - 1.193.0
+    - 1.195.0
+    - 1.197.0
+    - 1.198.0
+    - 1.200.0
+  - dependency-name: sequelize
+    versions:
+    - 6.4.0
+    - 6.5.0
+    - 6.5.1
+    - 6.6.1
+  - dependency-name: chai
+    versions:
+    - 4.3.0
+    - 4.3.3
+  - dependency-name: "@types/sinon"
+    versions:
+    - 9.0.10
+  - dependency-name: web3-core-subscriptions
+    versions:
+    - 1.3.4
+  - dependency-name: web3-utils
+    versions:
+    - 1.3.4
+  - dependency-name: sql-formatter
+    versions:
+    - 3.1.0
+    - 4.0.0
